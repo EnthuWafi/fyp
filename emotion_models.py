@@ -1,28 +1,52 @@
 # emotion_models.py
 import cv2
 import numpy as np
-from FaceChannel.FaceChannelV1.FaceChannelV1 import FaceChannelV1
+import onnxruntime as ort
 from keras.applications.mobilenet_v2 import preprocess_input
 
 # --- MODEL 1: FACECHANNEL ---
 class FaceChannelEmotionModel:
-    def __init__(self):
-        self.model = FaceChannelV1(type='Dim', loadModel=True)
+    def __init__(self, model_path='facechannel.onnx'):
+        print("[INFO] Loading FaceChannel via ONNX Runtime Engine...")
+        # Force CPU execution to bypass any residual GPU conflicts
+        self.session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+        self.input_name = self.session.get_inputs()[0].name
+        
+        # Dynamically check what shape the ONNX engine expects
+        self.input_shape = self.session.get_inputs()[0].shape
+        print(f"[INFO] ONNX Engine expecting input shape: {self.input_shape}")
 
     def predict(self, raw_color_crop):
-        """ FaceChannel specific preprocessing """
-        gray_face = cv2.cvtColor(raw_color_crop, cv2.COLOR_BGR2GRAY)
+        """ Fully Robust ONNX Preprocessing """
         
-        # 2. FaceChannel needs 64x64
+        # 1. Defensive Grayscale Check
+        if len(raw_color_crop.shape) == 3 and raw_color_crop.shape[2] == 3:
+            gray_face = cv2.cvtColor(raw_color_crop, cv2.COLOR_BGR2GRAY)
+        else:
+            gray_face = raw_color_crop
+            
+        # 2. Resize and Normalize
         face_resized = cv2.resize(gray_face, (64, 64))
-        
-        # 3. Simple 0-1 Normalization
         face_normalized = face_resized.astype('float32') / 255.0
-        face_ready = np.reshape(face_normalized, (64, 64, 1))
         
-        # 4. Predict
-        prediction = self.model.predict([face_ready], preprocess=False)
-        return {"valence": float(prediction[0][1]), "arousal": float(prediction[0][0])}
+        # 3. Adapt to NCHW format
+        if self.input_shape[1] == 1:
+            face_ready = np.reshape(face_normalized, (1, 1, 64, 64))
+        else:
+            face_ready = np.reshape(face_normalized, (1, 64, 64, 1))
+            
+        # 4. Predict instantly via ONNX
+        predictions = self.session.run(None, {self.input_name: face_ready})
+        
+        # Parse the ONNX output list: [array([[arousal]]), array([[valence]])]
+        try:
+            arousal = float(predictions[0][0][0])
+            valence = float(predictions[1][0][0])
+        except Exception as e:
+            print(f"[WARNING] Failed to parse ONNX output: {e}")
+            arousal, valence = 0.0, 0.0
+
+        return {"valence": round(valence, 2), "arousal": round(arousal, 2)}
 
 # --- MODEL 2: YOUR FUTURE PROJECT ---
 class MobileNetV2EmotionModel:
