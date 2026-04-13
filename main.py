@@ -35,6 +35,7 @@ class App(QWidget):
         main_layout.addWidget(self.image_label)
 
         dash_layout = QHBoxLayout()
+        dash_second_layout = QHBoxLayout() # second layer
         
         self.valence_label = QLabel("Valence: 0.0")
         self.valence_label.setFont(QFont("Arial", 14))
@@ -51,7 +52,15 @@ class App(QWidget):
         dash_layout.addStretch()
         dash_layout.addWidget(self.track_label)
 
+        self.emotion_label = QLabel("Current Emotion: Neutral")
+        self.emotion_label.setFont(QFont("Arial", 14))
+
+        # maybe later add a Russel dimensional graph of Valence Arousal too, that'd be cool
+
+        dash_second_layout.addWidget(self.emotion_label)
+
         main_layout.addLayout(dash_layout)
+        main_layout.addLayout(dash_second_layout)
         self.setLayout(main_layout)
 
         # --- Start the Background Thread ---
@@ -59,10 +68,12 @@ class App(QWidget):
         self.thread.update_ui_signal.connect(self.update_gui)
         self.thread.start()
 
-    def update_gui(self, cv_img, valence, arousal, track):
+    def update_gui(self, cv_img, valence, arousal, track, emotion):
         self.valence_label.setText(f"Valence: {valence}")
         self.arousal_label.setText(f"Arousal: {arousal}")
-        self.track_label.setText(f"Now Playing: {track}")
+        self.track_label.setText(f"Track: {track}")
+
+        self.emotion_label.setText(f"Emotion: {emotion}")
 
         rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb_image.shape

@@ -2,54 +2,132 @@
 import cv2
 import time
 import numpy as np
+from collections import deque
 from PySide6.QtCore import Signal, QThread
+from youtube_player import YouTubeQueuePlayer
 
 # Import your cleanly separated components
 from emotion_models import FaceChannelEmotionModel
 from music_regulator import IsoPrincipleRegulator
 
 class SystemPipelineThread(QThread):
-    update_ui_signal = Signal(np.ndarray, float, float, str)
+    # Update signal to accept both protocol and track strings
+    update_ui_signal = Signal(np.ndarray, float, float, str, str, str) 
 
     def run(self):
-        cap = cv2.VideoCapture(0)
+
+        camera_index = 2
+
+        cap = cv2.VideoCapture(camera_index)
+
         face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         
-        # Initialize your components
         emotion_model = FaceChannelEmotionModel()
         music_regulator = IsoPrincipleRegulator()
+        audio_player = YouTubeQueuePlayer()
+
+        # 60-second Smoothing Buffer
+        v_buffer = deque(maxlen=60)
+        a_buffer = deque(maxlen=60)
         
+        last_sample_time = time.time()
         last_music_update = time.time()
-        current_track = "Initializing..."
+        last_va_time = time.time() #for va
+        
+        current_protocol = "Initializing..."
+        current_emotion = "Neutral"
 
         while True:
             ret, frame = cap.read()
             if not ret: continue
-
-            # 1. FIND THE FACE (Handled by the pipeline)
+            
+            # --- 1. UI LAYER: FAST FACE TRACKING (Runs every frame) ---
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = face_cascade.detectMultiScale(gray_frame, 1.3, 5)
 
-            val, aro = 0.0, 0.0
-
             if len(faces) > 0:
-                # Grab the first face
                 x, y, w, h = faces[0]
-                
-                # Draw the bounding box
                 cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
                 
-                # Crop the face and pass it to the model
-                cropped_face = frame[y:y+h, x:x+w]
-                emotion_data = emotion_model.predict(cropped_face)
+            # --- 1 Hz SAMPLING RATE ---
+            # Limits capturing the face only once per second instead of many times
+            current_time = time.time()
+            if current_time - last_sample_time >= 1.0:
+                last_sample_time = current_time
+
+                if len(faces) > 0:
+                    x, y, w, h = faces[0]
+                    # Draw bounding box for the GUI
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    
+                    # Crop the COLOR frame to send to ONNX
+                    cropped_face = frame[y:y+h, x:x+w]
+                    
+                    # 2. PREDICT
+                    emotion_data = emotion_model.predict(cropped_face)
+                    
+                    # Add to buffer
+                    v_buffer.append(emotion_data['valence'])
+                    a_buffer.append(emotion_data['arousal'])
+            
+            # --- REGULATION LOGIC ---
+
+            # Check how much time is left on the current song
+            time_left = audio_player.get_time_remaining()
+            
+            # STATE 1: COLD START (Nothing is playing yet)
+            if audio_player.current_track is None and len(v_buffer) >= 1:
                 
-                val = emotion_data['valence']
-                aro = emotion_data['arousal']
+                # Step A: Initiate the download (Only if we aren't already downloading!)
+                if not audio_player.is_fetching and audio_player.next_file_path is None:
+                    avg_v = sum(v_buffer) / len(v_buffer)
+                    avg_a = sum(a_buffer) / len(a_buffer)
+                    
+                    current_protocol, initial_track = music_regulator.select_track(avg_v, avg_a)
+                    print(f"[SYSTEM] Cold Start: Downloading '{initial_track}'...")
+                    audio_player.prefetch_song(initial_track)
+                
+                # Step B: Play it ONLY after the background download finishes
+                elif not audio_player.is_fetching and audio_player.next_file_path is not None:
+                    audio_player.play_next_in_queue()
+                    print(f"[SYSTEM] Now Playing: {audio_player.current_track}")
+                
+            # STATE 2: RUNNING STATE (A song is currently playing)
+            elif len(v_buffer) >= 5:
+                avg_v = sum(v_buffer) / len(v_buffer)
+                avg_a = sum(a_buffer) / len(a_buffer)
+                
+                # Condition 1: Buffer the NEXT song (45+ seconds left)
+                if time_left < 45 and not audio_player.is_fetching and audio_player.next_file_path is None:
+                    current_protocol, next_track_string = music_regulator.select_track(avg_v, avg_a)
+                    print(f"[SYSTEM] Queueing up next track: {next_track_string}...")
+                    audio_player.prefetch_song(next_track_string)
 
-                # 2. REGULATE THE MUSIC
-                if time.time() - last_music_update > 3:
-                    current_track = music_regulator.select_track(val, aro)
-                    last_music_update = time.time()
+                # Condition 2: The song is ending. Transition!
+                if time_left <= 1 and not audio_player.is_fetching and audio_player.next_file_path is not None: 
+                    audio_player.play_next_in_queue()
+                    print(f"[SYSTEM] Now Playing: {audio_player.current_track}")
 
-            # 3. UPDATE THE GUI
-            self.update_ui_signal.emit(frame, val, aro, current_track)
+            # Update GUI
+            raw_v = round(v_buffer[-1], 2) if len(v_buffer) > 0 else 0.0
+            raw_a = round(a_buffer[-1], 2) if len(a_buffer) > 0 else 0.0
+            
+            self.update_ui_signal.emit(frame, raw_v, raw_a, audio_player.current_track, current_protocol, current_emotion)
+
+    def va_to_emotion(self, arousal, valence):
+        distance_from_middle = 0.1
+
+        if abs(arousal) <= distance_from_middle and abs(valence) <= distance_from_middle:
+            return "Neutral"
+        elif arousal > distance_from_middle and valence > distance_from_middle:
+            return "Happy / Excited"
+        elif arousal < -distance_from_middle and valence > distance_from_middle:
+            return "Calm / Relaxed"
+        elif arousal > distance_from_middle and valence < -distance_from_middle:
+            return "Angry / Stressed"
+        elif arousal < -distance_from_middle and valence < -distance_from_middle:
+            return "Sad / Fatigued"
+        else:
+            return "Transitioning..."
+
+            
