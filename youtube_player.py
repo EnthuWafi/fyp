@@ -4,10 +4,11 @@ import vlc
 import time
 import threading
 import os
+import json
 
 class YouTubeQueuePlayer:
     def __init__(self):
-        print("[INFO] Initializing Bulletproof Audio Engine...")
+        print("[INFO] Initializing Audio Engine...")
         self.instance = vlc.Instance('--no-video')
         self.player = self.instance.media_player_new()
         
@@ -30,8 +31,25 @@ class YouTubeQueuePlayer:
         self.start_time = 0
         
         self.next_track = None
-        self.next_file_path = None # We now store the local file path!
+        self.next_file_path = None
         self.is_fetching = False
+
+        self.local_cache = {}       # Maps "Song - Artist" to "temp_music/file.m4a"
+        self.local_durations = {}   # Maps "Song - Artist" to length in seconds
+
+        self.cache_file = "temp_music/cache_data.json"
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, 'r') as f:
+                    saved_data = json.load(f)
+                    # Verify files haven't been deleted manually before loading them
+                    for query, data in saved_data.items():
+                        if os.path.exists(data['path']):
+                            self.local_cache[query] = data['path']
+                            self.local_durations[query] = data['duration']
+                print(f"[INFO] Successfully loaded {len(self.local_cache)} songs from local cache.")
+            except Exception as e:
+                print(f"[WARNING] Could not load cache file: {e}")
 
     def prefetch_song(self, search_query):
         if self.is_fetching or search_query == self.next_track:
@@ -43,6 +61,16 @@ class YouTubeQueuePlayer:
 
     def _fetch_url_worker(self, search_query):
         print(f"[AUDIO] Downloading next track: {search_query}...")
+        # --- 1. CHECK THE CACHE FIRST ---
+        if search_query in self.local_cache and os.path.exists(self.local_cache[search_query]):
+            print(f"[AUDIO] CACHE HIT! Instantly loading from disk: {search_query}")
+            self.next_file_path = self.local_cache[search_query]
+            self.current_duration = self.local_durations[search_query]
+            self.is_fetching = False
+            return # Skip the YouTube download entirely!
+
+        # --- 2. IF NOT IN CACHE, DOWNLOAD IT ---
+        print(f"[AUDIO] Downloading next track: {search_query}...")
         try:
             with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
                 # MAGIC FIX: download=True
@@ -50,9 +78,24 @@ class YouTubeQueuePlayer:
                 if 'entries' in info and len(info['entries']) > 0:
                     track_data = info['entries'][0]
                     
-                    # Get the exact local file path where yt-dlp saved the audio
-                    self.next_file_path = ydl.prepare_filename(track_data)
-                    self.current_duration = track_data.get('duration', 0)
+                    file_path = ydl.prepare_filename(track_data)
+                    duration = track_data.get('duration', 0)
+                    
+                    self.next_file_path = file_path
+                    self.current_duration = duration
+                    
+                    self.local_cache[search_query] = file_path
+                    self.local_durations[search_query] = duration
+
+                    # --- SAVE TO PERSISTENT JSON FILE ---
+                    cache_export = {}
+                    for q in self.local_cache:
+                        cache_export[q] = {
+                            'path': self.local_cache[q],
+                            'duration': self.local_durations[q]
+                        }
+                    with open(self.cache_file, 'w') as f:
+                        json.dump(cache_export, f)
                     
                     print(f"[AUDIO] Ready (Downloaded) -> {search_query}")
         except Exception as e:

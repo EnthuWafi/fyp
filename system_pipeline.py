@@ -16,7 +16,7 @@ class SystemPipelineThread(QThread):
 
     def run(self):
 
-        camera_index = 2
+        camera_index = 0
 
         cap = cv2.VideoCapture(camera_index)
 
@@ -41,7 +41,7 @@ class SystemPipelineThread(QThread):
             ret, frame = cap.read()
             if not ret: continue
             
-            # --- 1. UI LAYER: FAST FACE TRACKING (Runs every frame) ---
+            # --- 1. UI LAYER: FAST FACE TRACKING ---
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = face_cascade.detectMultiScale(gray_frame, 1.3, 5)
 
@@ -75,7 +75,7 @@ class SystemPipelineThread(QThread):
             # Check how much time is left on the current song
             time_left = audio_player.get_time_remaining()
             
-            # STATE 1: COLD START (Nothing is playing yet)
+            # STATE 1: START (Nothing is playing yet)
             if audio_player.current_track is None and len(v_buffer) >= 1:
                 
                 # Step A: Initiate the download (Only if we aren't already downloading!)
@@ -99,6 +99,9 @@ class SystemPipelineThread(QThread):
                 
                 # Condition 1: Buffer the NEXT song (45+ seconds left)
                 if time_left < 45 and not audio_player.is_fetching and audio_player.next_file_path is None:
+
+                    music_regulator.evaluate_feedback(avg_a)
+
                     current_protocol, next_track_string = music_regulator.select_track(avg_v, avg_a)
                     print(f"[SYSTEM] Queueing up next track: {next_track_string}...")
                     audio_player.prefetch_song(next_track_string)
@@ -109,8 +112,11 @@ class SystemPipelineThread(QThread):
                     print(f"[SYSTEM] Now Playing: {audio_player.current_track}")
 
             # Update GUI
+            
             raw_v = round(v_buffer[-1], 2) if len(v_buffer) > 0 else 0.0
             raw_a = round(a_buffer[-1], 2) if len(a_buffer) > 0 else 0.0
+
+            current_emotion = self.va_to_emotion(raw_a, raw_v)
             
             self.update_ui_signal.emit(frame, raw_v, raw_a, audio_player.current_track, current_protocol, current_emotion)
 

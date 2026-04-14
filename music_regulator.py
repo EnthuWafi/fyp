@@ -33,27 +33,63 @@ class IsoPrincipleRegulator:
         # Recently played songs
         self.recently_played = []
 
+        # --- NEW: Adaptive Step Variables ---
+        self.last_a = None
+        self.bias_multiplier = 1.0
+        self.active_protocol = "None"
+
+    def evaluate_feedback(self, current_a):
+        """ Checks if the previous song successfully changed the driver's mood. """
+        if self.last_a is None:
+            self.last_a = current_a
+            return
+
+        # Check Calm Down Protocol effectiveness
+        if self.active_protocol == "[Calm Down Protocol]":
+            if (self.last_a - current_a) >= 0.1:
+                print(f"[FEEDBACK] Success. Arousal dropped by {self.last_a - current_a:.2f}.")
+                self.bias_multiplier = 1.0
+            else:
+                self.bias_multiplier = min(4.0, self.bias_multiplier * 2.0)
+                print(f"[FEEDBACK] User resisting! Doubling bias shift to {self.bias_multiplier}x.")
+
+        # Check Ramp Up Protocol effectiveness
+        elif self.active_protocol == "[Ramp Up Protocol]":
+            if (current_a - self.last_a) >= 0.1:
+                print(f"[FEEDBACK] Success. Arousal increased by {current_a - self.last_a:.2f}.")
+                self.bias_multiplier = 1.0
+            else:
+                self.bias_multiplier = min(4.0, self.bias_multiplier * 2.0)
+                print(f"[FEEDBACK] User resisting! Doubling bias shift to {self.bias_multiplier}x.")
+                
+        # If they are in the Safe Zone, reset the bias
+        elif self.active_protocol == "[Sustain Protocol]":
+            self.bias_multiplier = 1.0
+
+        # Save current state for the NEXT evaluation
+        self.last_a = current_a
+
     def select_track(self, current_valence, current_arousal):
         """ The Iso Principle """
         
         target_v = current_valence
         target_a = current_arousal
-        protocol = "None"
 
         # --- QUADRANT PROTOCOL LOGIC ---
         if current_valence >= 0:
-            protocol = "[Sustain Protocol]"
+            self.active_protocol = "[Sustain Protocol]"
             # Target remains identical to current
             
         elif current_valence < 0 and current_arousal >= 0:
-            protocol = "[Calm Down Protocol]"
-            target_v = min(1.0, current_valence + 0.2)
-            target_a = max(-1.0, current_arousal - 0.2)
+            self.active_protocol = "[Calm Down Protocol]"
+            # Multiply the shift by our adaptive bias!
+            target_v = min(1.0, current_valence + (0.2 * self.bias_multiplier))
+            target_a = max(-1.0, current_arousal - (0.3 * self.bias_multiplier))
             
         elif current_valence < 0 and current_arousal < 0:
-            protocol = "[Ramp Up Protocol]"
-            target_v = min(1.0, current_valence + 0.2)
-            target_a = min(1.0, current_arousal + 0.2)
+            self.active_protocol = "[Ramp Up Protocol]"
+            target_v = min(1.0, current_valence + (0.2 * self.bias_multiplier))
+            target_a = min(1.0, current_arousal + (0.2 * self.bias_multiplier))
 
         # --- ANNOY RETRIEVAL & HISTORY FILTER ---
         # Retrieve the top 10 closest matches to our target vector
@@ -78,4 +114,4 @@ class IsoPrincipleRegulator:
         best_match = self.df.iloc[best_match_idx]
         track_string = f"{best_match['track']} - {best_match['artist']}"
         
-        return protocol, track_string
+        return self.active_protocol, track_string
