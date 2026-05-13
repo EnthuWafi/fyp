@@ -6,8 +6,7 @@ from collections import deque
 from PySide6.QtCore import Signal, QThread
 from youtube_player import YouTubeQueuePlayer
 
-# Import your cleanly separated components
-from emotion_models import FaceChannelEmotionModel
+from emotion_models import EmotionModel
 from music_regulator import IsoPrincipleRegulator
 
 class SystemPipelineThread(QThread):
@@ -16,13 +15,13 @@ class SystemPipelineThread(QThread):
 
     def run(self):
 
-        camera_index = 0
+        camera_index = 1
 
         cap = cv2.VideoCapture(camera_index)
 
         face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         
-        emotion_model = FaceChannelEmotionModel()
+        emotion_model = EmotionModel()
         music_regulator = IsoPrincipleRegulator()
         audio_player = YouTubeQueuePlayer()
 
@@ -79,7 +78,7 @@ class SystemPipelineThread(QThread):
             if audio_player.current_track is None and len(v_buffer) >= 1:
                 
                 # Step A: Initiate the download (Only if we aren't already downloading!)
-                if not audio_player.is_fetching and audio_player.next_file_path is None:
+                if not audio_player.is_fetching and audio_player.next_stream_url is None:
                     avg_v = sum(v_buffer) / len(v_buffer)
                     avg_a = sum(a_buffer) / len(a_buffer)
                     
@@ -88,7 +87,7 @@ class SystemPipelineThread(QThread):
                     audio_player.prefetch_song(initial_track)
                 
                 # Step B: Play it ONLY after the background download finishes
-                elif not audio_player.is_fetching and audio_player.next_file_path is not None:
+                elif not audio_player.is_fetching and audio_player.next_stream_url is not None:
                     audio_player.play_next_in_queue()
                     print(f"[SYSTEM] Now Playing: {audio_player.current_track}")
                 
@@ -98,7 +97,7 @@ class SystemPipelineThread(QThread):
                 avg_a = sum(a_buffer) / len(a_buffer)
                 
                 # Condition 1: Buffer the NEXT song (45+ seconds left)
-                if time_left < 45 and not audio_player.is_fetching and audio_player.next_file_path is None:
+                if time_left < 45 and not audio_player.is_fetching and audio_player.next_stream_url is None:
 
                     music_regulator.evaluate_feedback(avg_a)
 
@@ -107,7 +106,7 @@ class SystemPipelineThread(QThread):
                     audio_player.prefetch_song(next_track_string)
 
                 # Condition 2: The song is ending. Transition!
-                if time_left <= 1 and not audio_player.is_fetching and audio_player.next_file_path is not None: 
+                if time_left <= 1 and not audio_player.is_fetching and audio_player.next_stream_url is not None: 
                     audio_player.play_next_in_queue()
                     print(f"[SYSTEM] Now Playing: {audio_player.current_track}")
 
@@ -117,6 +116,7 @@ class SystemPipelineThread(QThread):
             raw_a = round(a_buffer[-1], 2) if len(a_buffer) > 0 else 0.0
 
             current_emotion = self.va_to_emotion(raw_a, raw_v)
+            
             
             self.update_ui_signal.emit(frame, raw_v, raw_a, audio_player.current_track, current_protocol, current_emotion)
 
