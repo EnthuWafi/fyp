@@ -1,7 +1,7 @@
 # main.py
 import sys
 import cv2
-from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame
+from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QPushButton
 from PySide6.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QBrush, QColor
 from PySide6.QtCore import Qt, QRectF
 
@@ -21,6 +21,7 @@ class App(QWidget):
 
         self.setWindowTitle("Driver Music Regulation System")
         self.resize(1000, 600)
+        
 
         # --- MASTER LAYOUT ---
         master_layout = QHBoxLayout()
@@ -42,7 +43,7 @@ class App(QWidget):
         # --- RIGHT PANEL: TELEMETRY & GRAPH ---
         right_panel = QVBoxLayout()
         
-        telemetry_title = QLabel("System Telemetry")
+        telemetry_title = QLabel("Russell Graph")
         telemetry_title.setFont(QFont("Arial", 18, QFont.Bold))
         telemetry_title.setAlignment(Qt.AlignCenter)
         right_panel.addWidget(telemetry_title)
@@ -85,7 +86,11 @@ class App(QWidget):
         self.track_label.setWordWrap(True)
         right_panel.addWidget(self.track_label)
 
-        right_panel.addStretch() # Pushes everything to the top neatly
+        self.skip_button = QPushButton("Skip Track ⏭")
+
+        right_panel.addWidget(self.skip_button)
+
+        right_panel.addStretch()
 
         # --- COMPILE LAYOUTS ---
         master_layout.addLayout(left_panel, stretch=2) # Camera gets 2/3 of screen
@@ -97,6 +102,8 @@ class App(QWidget):
         self.thread = SystemPipelineThread()
         self.thread.update_ui_signal.connect(self.update_gui)
         self.thread.start()
+
+        self.skip_button.clicked.connect(self.thread.request_skip)
         
     def update_gui(self, cv_img, valence, arousal, track, protocol, emotion):
         # Update Text Labels
