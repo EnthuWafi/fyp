@@ -65,7 +65,7 @@ class App(QWidget):
         # 3. Emotion State
         self.emotion_label = QLabel("State: Neutral")
         self.emotion_label.setFont(QFont("Arial", 14, QFont.Bold))
-        self.emotion_label.setStyleSheet("color: #333333;")
+        self.emotion_label.setStyleSheet("color: #ffffff;")
         right_panel.addWidget(self.emotion_label)
 
         # Divider Line

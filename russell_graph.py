@@ -1,3 +1,4 @@
+#russell_graph
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame
 from PySide6.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QBrush, QColor
 from PySide6.QtCore import Qt, QRectF
@@ -13,7 +14,8 @@ class RussellGraph(QWidget):
     def update_point(self, v, a):
         self.valence = float(v)
         self.arousal = float(a)
-        self.update() # Triggers a repaint
+        self.update()
+
 
     def paintEvent(self, event):
         painter = QPainter(self)

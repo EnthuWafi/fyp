@@ -8,8 +8,8 @@ from collections import deque
 class EmotionModel:
     def __init__(self, 
                  enet_path='models/enet_b0_8_best_vgaf_float32.tflite', 
-                 gru_path='models/edge_gru_model_hybrid.tflite', 
-                 mlp_path='models/enet_mlp_model.tflite'):
+                 gru_path='models/edge_gru_modelv3.tflite', 
+                 slp_path='models/enet_mlp_modelv3.tflite'):
         
         print("[INFO] Loading TFLite Edge Models (ENet + GRU + MLP)...")
 
@@ -17,15 +17,15 @@ class EmotionModel:
         
         abs_enet = os.path.join(base_dir, enet_path)
         abs_gru  = os.path.join(base_dir, gru_path)
-        abs_mlp  = os.path.join(base_dir, mlp_path)
+        abs_slp  = os.path.join(base_dir, slp_path)
 
         self.enet_interp = Interpreter(model_path=enet_path)
         self.gru_interp  = Interpreter(model_path=gru_path)
-        self.mlp_interp  = Interpreter(model_path=mlp_path)
+        self.slp_interp  = Interpreter(model_path=slp_path)
         
         self.enet_interp.allocate_tensors()
         self.gru_interp.allocate_tensors()
-        self.mlp_interp.allocate_tensors()
+        self.slp_interp.allocate_tensors()
         
         # I/O Pointers
         self.enet_in  = self.enet_interp.get_input_details()[0]
@@ -34,11 +34,12 @@ class EmotionModel:
         self.gru_in  = self.gru_interp.get_input_details()[0]['index']
         self.gru_out = self.gru_interp.get_output_details()[0]['index']
         
-        self.mlp_in  = self.mlp_interp.get_input_details()[0]['index']
-        self.mlp_out = self.mlp_interp.get_output_details()[0]['index']
+        self.slp_in  = self.slp_interp.get_input_details()[0]['index']
+        self.slp_out = self.slp_interp.get_output_details()[0]['index']
         
         # The Temporal Memory
         self.history_queue = deque(maxlen=15)
+        self.prediction_buffer = deque(maxlen=15)
         self.max_time_gap = 3.0
 
         self.confidence_threshold = 0.65 
@@ -61,44 +62,29 @@ class EmotionModel:
         expected_shape = self.enet_in['shape']
         face_input = np.expand_dims(face_norm, axis=0).astype(np.float32)
         
-        # 1. Extract the Raw Logits
+        #Extract the Raw Logits
         self.enet_interp.set_tensor(self.enet_in['index'], face_input)
         self.enet_interp.invoke()
         raw_logits = self.enet_interp.get_tensor(self.enet_out)[0]
         
-        # 2. CONVERT TO SOFTMAX PROBABILITIES 
-        e_x = np.exp(raw_logits - np.max(raw_logits))
-        scores = e_x / e_x.sum(axis=0)
-
-        # Temporal Queue Update
+        # Temporal Queue Update 
         current_time = time.time()
+        if len(self.history_queue) > 0:
+            time_since_last_frame = current_time - self.history_queue[-1][0]
+            if time_since_last_frame > 2.0: # 2 seconds of missing face
+                self.history_queue.clear()
+                print("[WARN] Face tracking lost. Flushing temporal memory.")
 
-        while len(self.history_queue) > 0 and (current_time - self.history_queue[0][0]) > self.max_time_gap:
-            self.history_queue.popleft()
-                
-        self.history_queue.append((current_time, scores))
+        self.history_queue.append((current_time, raw_logits))
         
-        pooled_scores = np.mean([item[1] for item in self.history_queue], axis=0)
-        
-        # Calculate the maximal inter-class confidence score
-        confidence = np.max(pooled_scores)
         current_l = len(self.history_queue)
 
-            
-        if confidence >= self.confidence_threshold:
-            # Early Exit. Confidence is high enough to bypass temporal smoothing.
-            
-            mlp_input = np.expand_dims(pooled_scores, axis=0).astype(np.float32)
-            self.mlp_interp.set_tensor(self.mlp_in, mlp_input)
-            self.mlp_interp.invoke()
-            v_a_prediction = self.mlp_interp.get_tensor(self.mlp_out)[0]
-            
-            self.last_valid_prediction = {
-                "valence": round(float(v_a_prediction[0]), 2), 
-                "arousal": round(float(v_a_prediction[1]), 2),
-                "engine": f"MLP Early Exit (Conf: {confidence:.2f})"
-            }
-        elif current_l == 15:    
+        e_x = np.exp(current_logits - np.max(current_logits))
+        current_probs = e_x / e_x.sum(axis=0)
+        confidence = np.max(current_probs)
+
+        # confidence should be checked first for early exit
+        if confidence < self.confidence_threshold and current_l == 15:    
             # Maximum adjusted frame rate reached. Run the heavy temporal model.
             temporal_sequence = np.array([item[1] for item in self.history_queue], dtype=np.float32)
             gru_input = np.expand_dims(temporal_sequence, axis=0) 
@@ -107,17 +93,29 @@ class EmotionModel:
             self.gru_interp.invoke()
             v_a_prediction = self.gru_interp.get_tensor(self.gru_out)[0]
             
-            self.last_valid_prediction = {
-                "valence": round(float(v_a_prediction[0]), 2), 
-                "arousal": round(float(v_a_prediction[1]), 2),
-                "engine": "GRU (L=15)"
-            }
+            active_engine = "GRU (L=15)"
         else:
-            # NO EXIT: Confidence is too low. Continue accumulating frames.
-            # Return the last known valid coordinate so the music system doesn't crash.
-            self.last_valid_prediction = {
-                "valence": self.last_valid_prediction["valence"],
-                "arousal": self.last_valid_prediction["arousal"],
-                "engine": f"Accumulating (L={current_l}, Conf: {confidence:.2f})"
-            }
+            # Early Exit. 
+            # This will run if the confidence exceed a certain level, or if it does not have enough
+            # frame to run the GRU model
+
+            slp_input = np.expand_dims(raw_logits, axis=0).astype(np.float32)
+            self.slp_interp.set_tensor(self.slp_in, slp_input)
+            self.slp_interp.invoke()
+            v_a_prediction = self.slp_interp.get_tensor(self.slp_out)[0]
+
+            active_engine = f"SLP Early Exit (Conf: {confidence:.2f}, L={current_l}"
+
+        self.prediction_buffer.append((float(v_a_frame_output[0]), float(v_a_frame_output[1])))
+        
+        # calc mathematical mean across the prediction history window
+        smoothed_v = np.mean([pred[0] for pred in self.prediction_buffer])
+        smoothed_a = np.mean([pred[1] for pred in self.prediction_buffer])
+
+        self.last_valid_prediction = {
+            "valence": round(float(smoothed_v), 2), 
+            "arousal": round(float(smoothed_a), 2),
+            "engine": active_engine
+        }
+
         return self.last_valid_prediction

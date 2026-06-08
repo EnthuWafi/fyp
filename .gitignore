@@ -216,4 +216,7 @@ __marimo__/
 .streamlit/secrets.toml
 
 *.csv
+
 temp_music/
+
+dataset/
