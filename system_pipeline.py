@@ -16,7 +16,7 @@ from emotion_models import EmotionModel
 from music_regulator import IsoPrincipleRegulator
 
 class SystemPipelineThread(QThread):
-    update_ui_signal = Signal(np.ndarray, float, float, str, str, str) 
+    update_ui_signal = Signal(np.ndarray, float, float, float, float, str, str, str) 
 
     def __init__(self):
         super().__init__()
@@ -168,8 +168,14 @@ class SystemPipelineThread(QThread):
                         audio_player.play_next_in_queue()
                         print(f"[SYSTEM] Now Playing: {audio_player.current_track}")
 
-                self.update_ui_signal.emit(frame, raw_v, raw_a, str(audio_player.current_track), current_protocol, current_emotion)
-                
+                target_v = music_regulator.target_v if music_regulator.target_v is not None else 0.0
+                target_a = music_regulator.target_a if music_regulator.target_a is not None else 0.0
+
+                self.update_ui_signal.emit(
+                    frame, raw_v, raw_a, target_v, target_a, 
+                    str(audio_player.current_track), 
+                    current_protocol, current_emotion)
+
     def va_to_emotion(self, arousal, valence):
         distance_from_middle = 0.1
 

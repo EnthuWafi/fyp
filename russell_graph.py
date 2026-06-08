@@ -10,12 +10,16 @@ class RussellGraph(QWidget):
         self.setMinimumSize(300, 300)
         self.valence = 0.0
         self.arousal = 0.0
+        self.target_valence = 0.0
+        self.target_arousal = 0.0
 
-    def update_point(self, v, a):
-        self.valence = float(v)
-        self.arousal = float(a)
-        self.update()
-
+    def update_point(self, cv, ca, tv, ta):
+        """ Updates both current and target coordinates simultaneously """
+        self.valence = float(cv)
+        self.arousal = float(ca)
+        self.target_valence = float(tv)
+        self.target_arousal = float(ta)
+        self.update() # Triggers paintEvent natively
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -46,12 +50,26 @@ class RussellGraph(QWidget):
         painter.drawText(center_x + radius + 5, center_y + 5, "Positive")
         painter.drawText(center_x - radius - 50, center_y + 5, "Negative")
 
-        # Map Valence/Arousal (-1.0 to 1.0) to pixel coordinates
-        # Note: Y-axis is inverted in GUI drawing (0 is top)
-        dot_x = center_x + (self.valence * radius)
-        dot_y = center_y - (self.arousal * radius)
 
-        # Draw the Data Point
+        # Remap standard [-1, 1] grid into inverted UI space coordinates
+        curr_x = center_x + (self.valence * radius)
+        curr_y = center_y - (self.arousal * radius)
+        
+        targ_x = center_x + (self.target_valence * radius)
+        targ_y = center_y - (self.target_arousal * radius) 
+
+        # Draw a clean vector line indicating intended emotional trajectory
+        path_pen = QPen(QColor(0, 85, 164, 180), 2, Qt.SolidLine) # Blue vector trail
+        painter.setPen(path_pen)
+        painter.drawLine(QPointF(curr_x, curr_y), QPointF(targ_x, targ_y))
+
+        # --- 5. DRAW TRACKING MARKERS ---
+        # Draw target destination marker (Hollow Blue Circle)
+        painter.setPen(QPen(QColor(0, 85, 164), 2))
+        painter.setBrush(QBrush(QColor(0, 85, 164, 40))) # Translucent blue filling
+        painter.drawEllipse(QRectF(targ_x - 6, targ_y - 6, 12, 12))
+
+        # Draw current driver state marker (Solid Red Circle)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(QColor(255, 50, 50))) # Red dot
-        painter.drawEllipse(QRectF(dot_x - 8, dot_y - 8, 16, 16))
+        painter.setBrush(QBrush(QColor(239, 68, 68))) 
+        painter.drawEllipse(QRectF(curr_x - 6, curr_y - 6, 12, 12))

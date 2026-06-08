@@ -105,7 +105,7 @@ class App(QWidget):
 
         self.skip_button.clicked.connect(self.thread.request_skip)
         
-    def update_gui(self, cv_img, valence, arousal, track, protocol, emotion):
+    def update_gui(self, cv_img, valence, arousal, target_v, target_a, track, protocol, emotion):
         # Update Text Labels
         self.valence_label.setText(f"Valence: {valence:.2f}")
         self.arousal_label.setText(f"Arousal: {arousal:.2f}")
@@ -114,7 +114,7 @@ class App(QWidget):
         self.emotion_label.setText(f"State: {emotion}")
 
         # Update the live Graph!
-        self.russell_graph.update_point(valence, arousal)
+        self.russell_graph.update_point(valence, arousal, target_v, target_a)
 
         # Update Video Feed
         rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
