@@ -1,13 +1,14 @@
 # main.py
+import os
 import sys
 import cv2
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QPushButton
 from PySide6.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QBrush, QColor
 from PySide6.QtCore import Qt, QRectF
 
-# Import the background thread from your worker file
 from system_pipeline import SystemPipelineThread 
 from russell_graph import RussellGraph
+from setup import setup_database
 
 class App(QWidget):
     def __init__(self):
@@ -26,25 +27,33 @@ class App(QWidget):
         # --- MASTER LAYOUT ---
         master_layout = QHBoxLayout()
 
+        # --- MASTER LAYOUT ---
+        master_layout = QHBoxLayout()
+        master_layout.setContentsMargins(20, 20, 20, 20)
+        master_layout.setSpacing(25)
+
         # --- LEFT PANEL: CAMERA ---
         left_panel = QVBoxLayout()
+        left_panel.setSpacing(10)
+        
         title = QLabel("Live Driver Feed")
-        title.setFont(QFont("Arial", 18, QFont.Bold))
+        title.setFont(QFont("Arial", 16, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         
         self.image_label = QLabel()
+        self.image_label.setObjectName("videoLabel") # Maps directly to QSS #videoLabel
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_label.setMinimumSize(640, 480)
-        self.image_label.setStyleSheet("border: 2px solid gray;")
         
         left_panel.addWidget(title)
         left_panel.addWidget(self.image_label)
 
         # --- RIGHT PANEL: TELEMETRY & GRAPH ---
         right_panel = QVBoxLayout()
+        right_panel.setSpacing(15)
         
         telemetry_title = QLabel("Russell Graph")
-        telemetry_title.setFont(QFont("Arial", 18, QFont.Bold))
+        telemetry_title.setFont(QFont("Arial", 16, QFont.Bold))
         telemetry_title.setAlignment(Qt.AlignCenter)
         right_panel.addWidget(telemetry_title)
 
@@ -56,45 +65,56 @@ class App(QWidget):
         va_layout = QHBoxLayout()
         self.valence_label = QLabel("Valence: 0.00")
         self.arousal_label = QLabel("Arousal: 0.00")
-        self.valence_label.setFont(QFont("Arial", 14))
-        self.arousal_label.setFont(QFont("Arial", 14))
+        self.valence_label.setFont(QFont("Arial", 13))
+        self.arousal_label.setFont(QFont("Arial", 13))
         va_layout.addWidget(self.valence_label)
         va_layout.addWidget(self.arousal_label)
         right_panel.addLayout(va_layout)
 
+        # Music Vector Readout
+        music_va_layout = QHBoxLayout()
+        self.music_v_label = QLabel("Music Valence: 0.00")
+        self.music_a_label = QLabel("Music Arousal: 0.00")
+        self.music_v_label.setObjectName("musicValenceLabel")
+        self.music_a_label.setObjectName("musicArousalLabel")
+        music_va_layout.addWidget(self.music_v_label)
+        music_va_layout.addWidget(self.music_a_label)
+        right_panel.addLayout(music_va_layout)
+
         # 3. Emotion State
         self.emotion_label = QLabel("State: Neutral")
-        self.emotion_label.setFont(QFont("Arial", 14, QFont.Bold))
-        self.emotion_label.setStyleSheet("color: #ffffff;")
+        self.emotion_label.setObjectName("emotionLabel")
         right_panel.addWidget(self.emotion_label)
 
         # Divider Line
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
         line.setFrameShadow(QFrame.Sunken)
+        line.setStyleSheet("background-color: #333333;")
         right_panel.addWidget(line)
 
         # 4. Active Protocol
         self.protocol_label = QLabel("Protocol: Initializing...")
-        self.protocol_label.setFont(QFont("Arial", 14, QFont.Bold))
-        self.protocol_label.setStyleSheet("color: #0055A4;") # Blue emphasis
+        self.protocol_label.setObjectName("protocolLabel")
         right_panel.addWidget(self.protocol_label)
 
         # 5. Current Track
         self.track_label = QLabel("Track: None")
-        self.track_label.setFont(QFont("Arial", 12))
+        self.track_label.setObjectName("trackLabel")
         self.track_label.setWordWrap(True)
         right_panel.addWidget(self.track_label)
 
+        # Control Operations
         self.skip_button = QPushButton("Skip Track ⏭")
-
+        self.skip_button.setObjectName("skipButton")
+        self.skip_button.setMinimumHeight(40)
         right_panel.addWidget(self.skip_button)
 
         right_panel.addStretch()
 
         # --- COMPILE LAYOUTS ---
-        master_layout.addLayout(left_panel, stretch=2) # Camera gets 2/3 of screen
-        master_layout.addLayout(right_panel, stretch=1) # Telemetry gets 1/3 of screen
+        master_layout.addLayout(left_panel, stretch=2)
+        master_layout.addLayout(right_panel, stretch=1)
         
         self.setLayout(master_layout)
 
@@ -105,7 +125,7 @@ class App(QWidget):
 
         self.skip_button.clicked.connect(self.thread.request_skip)
         
-    def update_gui(self, cv_img, valence, arousal, target_v, target_a, track, protocol, emotion):
+    def update_gui(self, cv_img, valence, arousal, target_v, target_a, music_v, music_a, track, protocol, emotion):
         # Update Text Labels
         self.valence_label.setText(f"Valence: {valence:.2f}")
         self.arousal_label.setText(f"Arousal: {arousal:.2f}")
@@ -113,7 +133,10 @@ class App(QWidget):
         self.protocol_label.setText(f"Protocol: {protocol}")
         self.emotion_label.setText(f"State: {emotion}")
 
-        # Update the live Graph!
+        self.music_v_label.setText(f"Music Valence: {music_v:.2f}")
+        self.music_a_label.setText(f"Music Arousal: {music_a:.2f}")
+
+        # Update the live Graph
         self.russell_graph.update_point(valence, arousal, target_v, target_a)
 
         # Update Video Feed
@@ -130,8 +153,19 @@ class App(QWidget):
         self.thread.terminate()
         event.accept()
 
-if __name__ == "__main__":
+def main():
+    db_file = "music_system.db"
+    ann_file = "music_vectors.ann"
+
+    if not os.path.exists(db_file) or not os.path.exists(ann_file):
+        print("[FIRST-RUN] Application assets missing. Beginning automated environment compilation...")
+        setup_database(db_path=db_file, ann_path=ann_file)
+        print("[FIRST-RUN] Environment compiled successfully.")
+
     app = QApplication(sys.argv)
     window = App()
     window.show()
     sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()

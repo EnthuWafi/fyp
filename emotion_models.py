@@ -9,7 +9,7 @@ class EmotionModel:
     def __init__(self, 
                  enet_path='models/enet_b0_8_best_vgaf_float32.tflite', 
                  gru_path='models/edge_gru_modelv3.tflite', 
-                 slp_path='models/enet_mlp_modelv3.tflite'):
+                 slp_path='models/enet_slp_modelv3.tflite'):
         
         print("[INFO] Loading TFLite Edge Models (ENet + GRU + MLP)...")
 
@@ -79,7 +79,7 @@ class EmotionModel:
         
         current_l = len(self.history_queue)
 
-        e_x = np.exp(current_logits - np.max(current_logits))
+        e_x = np.exp(raw_logits - np.max(raw_logits))
         current_probs = e_x / e_x.sum(axis=0)
         confidence = np.max(current_probs)
 
@@ -106,7 +106,7 @@ class EmotionModel:
 
             active_engine = f"SLP Early Exit (Conf: {confidence:.2f}, L={current_l}"
 
-        self.prediction_buffer.append((float(v_a_frame_output[0]), float(v_a_frame_output[1])))
+        self.prediction_buffer.append((float(v_a_prediction[0]), float(v_a_prediction[1])))
         
         # calc mathematical mean across the prediction history window
         smoothed_v = np.mean([pred[0] for pred in self.prediction_buffer])

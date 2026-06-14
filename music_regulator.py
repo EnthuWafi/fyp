@@ -30,10 +30,11 @@ class IsoPrincipleRegulator:
         self.bias_multiplier_v = 1.0
 
         self.active_protocol = "None"
+
         self.current_track_id = None
 
     
-    def evaluate_feedback(self, current_a=0.0, current_v=0.0):
+    def evaluate_feedback(self, current_v=0.0, current_a=0.0):
         """ Checks if the previous song successfully changed the driver's mood. """
         if self.last_a is None or self.last_v is None:
             self.last_a = current_a
@@ -41,9 +42,10 @@ class IsoPrincipleRegulator:
             return
 
         # Check Calm Down Protocol effectiveness
-        if self.active_protocol == "Calm Down Protocol":
+        min_improvement = 0.1
+        if self.active_protocol == "Calm Down Protocol" or self.active_protocol == "Emergency Calm Protocol":
             #arousal
-            if (self.last_a - current_a) >= 0.1:
+            if (self.last_a - current_a) >= min_improvement:
                 print(f"[FEEDBACK] Success. Arousal dropped by {self.last_a - current_a:.2f}.")
                 self.bias_multiplier_a = 1.0
             else:
@@ -51,8 +53,8 @@ class IsoPrincipleRegulator:
                 print(f"[FEEDBACK] Arousal not improving. Doubling bias shift to {self.bias_multiplier_a}x.")
 
             #valence
-            if (self.last_v - current_v) >= 0.1:
-                print(f"[FEEDBACK] Success. Valence dropped by {self.last_v - current_v:.2f}.")
+            if (current_v - self.last_v) >= min_improvement:
+                print(f"[FEEDBACK] Success. Valence dropped by {current_v - self.last_v:.2f}.")
                 self.bias_multiplier_v = 1.0
             else:
                 self.bias_multiplier_v = min(4.0, self.bias_multiplier_v * 2.0)
@@ -60,7 +62,7 @@ class IsoPrincipleRegulator:
 
         # Check Ramp Up Protocol effectiveness
         elif self.active_protocol == "Ramp Up Protocol":
-            if (current_a - self.last_a) >= 0.1:
+            if (current_a - self.last_a) >= min_improvement:
                 print(f"[FEEDBACK] Success. Arousal increased by {current_a - self.last_a:.2f}.")
                 self.bias_multiplier_a = 1.0
             else:
@@ -68,7 +70,7 @@ class IsoPrincipleRegulator:
                 print(f"[FEEDBACK] Arousal not improving. Doubling bias shift to {self.bias_multiplier_a}x.")
 
             #valence
-            if (current_v - self.last_v) >= 0.1:
+            if (current_v - self.last_v) >= min_improvement:
                 print(f"[FEEDBACK] Success. Valence dropped by {self.last_v - current_v:.2f}.")
                 self.bias_multiplier_v = 1.0
             else:
@@ -84,20 +86,28 @@ class IsoPrincipleRegulator:
         self.last_a = current_a
         self.last_v = current_v
 
-    def select_track(self, current_valence, current_arousal):
+    def select_track(self, current_valence, current_arousal, force_calm=False):
         """ The Iso Principle """
         
         self.target_v = current_valence
         self.target_a = current_arousal
+
 
         # QUADRANT PROTOCOL LOGIC
         if current_valence >= 0:
             self.active_protocol = "Sustain Protocol"
             
         elif current_valence < 0 and current_arousal >= 0:
-            self.active_protocol = "Calm Down Protocol"
+            # self.active_protocol = "Calm Down Protocol" if not force_calm else "Emergency Calm Protocol"
+            if force_calm:
+                self.active_protocol = "Emergency Calm Protocol"
+                self.bias_multiplier_v = 2.0
+                self.bias_multiplier_a = 2.0
+            else:
+                self.active_protocol = "Calm Down Protocol"
+                
             self.target_v = min(1.0, current_valence + (0.2 * self.bias_multiplier_v))
-            self.target_a = max(-1.0, current_arousal - (0.3 * self.bias_multiplier_a))
+            self.target_a = max(-1.0, current_arousal - (0.2 * self.bias_multiplier_a))
             
         elif current_valence < 0 and current_arousal < 0:
             self.active_protocol = "Ramp Up Protocol"
@@ -105,7 +115,7 @@ class IsoPrincipleRegulator:
             self.target_a = min(1.0, current_arousal + (0.2 * self.bias_multiplier_a))
 
         # Annoy logic
-        nearest_neighbors = self.annoy_index.get_nns_by_vector([target_v, target_a], 50)
+        nearest_neighbors = self.annoy_index.get_nns_by_vector([self.target_v, self.target_a], 50)
         
         result = self.db.get_best_candidate(
             annoy_ids=nearest_neighbors, 
@@ -138,8 +148,9 @@ class IsoPrincipleRegulator:
         # best_match = self.df.iloc[best_match_idx]
 
         track_string = f"{result[1]} - {result[2]}"
-        
-        return self.active_protocol, track_string
+        va_data = [result[3], result[4]] #maybe return the exact va data too
+        return self.active_protocol, track_string, va_data
+    
     
     def close(self):
         """Safely close repository connections"""

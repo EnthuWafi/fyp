@@ -1,18 +1,55 @@
-/* style.qss */
 QWidget {
-    background-color: #1e1e1e;
-    color: #ffffff;
-    font-family: Arial;
-}
-
-QLabel#trackLabel {
-    font-size: 24px;
-    font-weight: bold;
-    color: #00ffcc;
+    background-color: #1a1a1a;
+    color: #e2e8f0;
+    font-family: "Segoe UI", Arial, sans-serif;
 }
 
 QLabel#videoLabel {
     background-color: #000000;
-    border: 2px solid #555555;
-    border-radius: 10px;
+    border: 2px solid #3b4252;
+    border-radius: 8px;
+}
+
+QLabel#trackLabel {
+    font-size: 14px;
+    font-weight: bold;
+    color: #00ffcc;
+    padding: 5px 0px;
+}
+
+QLabel#emotionLabel {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+QLabel#protocolLabel {
+    font-size: 14px;
+    font-weight: bold;
+    color: #3b82f6;
+}
+
+QLabel#musicValenceLabel, QLabel#musicArousalLabel {
+    font-size: 12px;
+    font-weight: bold;
+    color: #52d398;
+}
+
+QPushButton#skipButton {
+    background-color: #2e3440;
+    border: 1px solid #4c566a;
+    border-radius: 6px;
+    color: #d8dee9;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+QPushButton#skipButton:hover {
+    background-color: #3b4252;
+    border: 1px solid #81a1c1;
+    color: #ffffff;
+}
+
+QPushButton#skipButton:pressed {
+    background-color: #434c5e;
 }
