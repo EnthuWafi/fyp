@@ -21,9 +21,8 @@ class YouTubeQueuePlayer:
             'outtmpl': 'temp_music/%(id)s.%(ext)s',
             'noplaylist': True,
             'quiet': True,
-            'extractor_args': {'youtube': {'player_client': ['android']}} 
+            'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}}
         }
-        
         self.current_track = None
         self.current_duration = 0
         self.start_time = 0
@@ -181,11 +180,12 @@ class YouTubeQueuePlayer:
         return max(0, remaining)
 
     def get_elapsed_time(self):
-        if not self.player.is_playing() and self.start_time > 0:
+        vlc_ms = self.player.get_time()
+        
+        if vlc_ms <= 0:
             return 0
             
-        elapsed = time.time() - self.start_time
-        return max(0, elapsed)
+        return vlc_ms / 1000.0
 
     def get_listen_percentage(self):
         time_left = self.get_time_remaining()

@@ -18,7 +18,7 @@ from music_regulator import IsoPrincipleRegulator
 class SystemPipelineThread(QThread):
     update_ui_signal = Signal(np.ndarray, float, float, float, float, float, float, str, str, str) 
 
-    def __init__(self):
+    def __init__(self, db_path="music_system.db", annoy_index_path='music_vectors.ann'):
         super().__init__()
         self.mediapipe_path = './models/blaze_face_full_range_sparse.tflite'
 
@@ -29,6 +29,9 @@ class SystemPipelineThread(QThread):
 
         self.anger_start_time = None
         self.emergency_engaged = False
+
+        self.db_path = db_path
+        self.annoy_index_path = annoy_index_path
     
     def mp_callback(self, result: vision.FaceDetectorResult, output_image: mp.Image, timestamp_ms: int):
         """This function runs automatically on a background thread when MediaPipe finds a face."""
@@ -54,7 +57,7 @@ class SystemPipelineThread(QThread):
         VisionRunningMode = mp.tasks.vision.RunningMode
 
         emotion_model = EmotionModel()
-        music_regulator = IsoPrincipleRegulator()
+        music_regulator = IsoPrincipleRegulator(self.db_path, self.annoy_index_path)
         audio_player = YouTubeQueuePlayer()
 
         start_time = time.time()

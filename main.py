@@ -9,9 +9,12 @@ from PySide6.QtCore import Qt, QRectF
 from system_pipeline import SystemPipelineThread 
 from russell_graph import RussellGraph
 from setup import setup_database
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class App(QWidget):
-    def __init__(self):
+    def __init__(self, db_path="music_system.db", annoy_index_path='music_vectors.ann'):
         super().__init__()
         
         try:
@@ -119,7 +122,7 @@ class App(QWidget):
         self.setLayout(master_layout)
 
         # --- Start the Background Thread ---
-        self.thread = SystemPipelineThread()
+        self.thread = SystemPipelineThread(db_path, annoy_index_path)
         self.thread.update_ui_signal.connect(self.update_gui)
         self.thread.start()
 
@@ -154,8 +157,8 @@ class App(QWidget):
         event.accept()
 
 def main():
-    db_file = "music_system.db"
-    ann_file = "music_vectors.ann"
+    db_file = os.getenv("SQLITE_DATABASE")
+    ann_file = os.getenv("ANNOY_INDEX")
 
     if not os.path.exists(db_file) or not os.path.exists(ann_file):
         print("[FIRST-RUN] Application assets missing. Beginning automated environment compilation...")
@@ -163,7 +166,7 @@ def main():
         print("[FIRST-RUN] Environment compiled successfully.")
 
     app = QApplication(sys.argv)
-    window = App()
+    window = App(db_file, ann_file)
     window.show()
     sys.exit(app.exec())
 
