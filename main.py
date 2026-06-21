@@ -2,9 +2,12 @@
 import os
 import sys
 import cv2
-from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QPushButton
+import sqlite3
+import pandas as pd
+from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QSlider
 from PySide6.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QBrush, QColor
-from PySide6.QtCore import Qt, QRectF
+from PySide6.QtCore import Slot, Qt, QRectF, QUrl
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 from system_pipeline import SystemPipelineThread 
 from russell_graph import RussellGraph
@@ -26,6 +29,9 @@ class App(QWidget):
         self.setWindowTitle("Driver Music Regulation System")
         self.resize(1000, 600)
         
+        self.player = QMediaPlayer()
+        self.audio_output = QAudioOutput()
+        self.player.setAudioOutput(self.audio_output)
 
         # --- MASTER LAYOUT ---
         master_layout = QHBoxLayout()
@@ -107,11 +113,50 @@ class App(QWidget):
         self.track_label.setWordWrap(True)
         right_panel.addWidget(self.track_label)
 
+        # NEW: Media Playback Progress Slider
+        progress_layout = QHBoxLayout()
+        self.time_elapsed_label = QLabel("00:00")
+        self.progress_slider = QSlider(Qt.Horizontal)
+        self.progress_slider.setObjectName("progressSlider")
+        self.progress_slider.setRange(0, 100)
+        self.progress_slider.setEnabled(False) # Track progress as read-only to protect pipeline state
+        self.time_total_label = QLabel("00:00")
+        
+        progress_layout.addWidget(self.time_elapsed_label)
+        progress_layout.addWidget(self.progress_slider)
+        progress_layout.addWidget(self.time_total_label)
+        right_panel.addLayout(progress_layout)
+
+        # NEW: Volume Controller Slider
+        volume_layout = QHBoxLayout()
+        volume_icon = QLabel("🔊")
+        self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setObjectName("volumeSlider")
+        self.volume_slider.setRange(0, 100)
+        self.volume_slider.setValue(100)
+        self.volume_slider.setMinimumWidth(50)
+        self.volume_slider.setMaximumWidth(100)
+        
+        volume_layout.addStretch() 
+        volume_layout.addWidget(volume_icon)
+        volume_layout.addWidget(self.volume_slider)
+        right_panel.addLayout(volume_layout)
+
         # Control Operations
+        button_row_layout = QHBoxLayout()
+        button_row_layout.setSpacing(10)
+        
         self.skip_button = QPushButton("Skip Track ⏭")
         self.skip_button.setObjectName("skipButton")
         self.skip_button.setMinimumHeight(40)
-        right_panel.addWidget(self.skip_button)
+        
+        self.export_button = QPushButton("Export Data")
+        self.export_button.setObjectName("exportButton")
+        self.export_button.setMinimumHeight(40)
+        
+        button_row_layout.addWidget(self.skip_button)
+        button_row_layout.addWidget(self.export_button)
+        right_panel.addLayout(button_row_layout)
 
         right_panel.addStretch()
 
@@ -122,11 +167,19 @@ class App(QWidget):
         self.setLayout(master_layout)
 
         # --- Start the Background Thread ---
-        self.thread = SystemPipelineThread(db_path, annoy_index_path)
+        self.thread = SystemPipelineThread(db_path, annoy_index_path, self.player, self.audio_output)
         self.thread.update_ui_signal.connect(self.update_gui)
+
+        self.thread.progress_signal.connect(self.update_playback_progress)
+        self.volume_slider.valueChanged.connect(self.thread.set_volume)
+
+        self.thread.pipeline_request_play_signal.connect(self.execute_main_thread_play)
+
         self.thread.start()
 
         self.skip_button.clicked.connect(self.thread.request_skip)
+        self.export_button.clicked.connect(self.export_telemetry)
+        
         
     def update_gui(self, cv_img, valence, arousal, target_v, target_a, music_v, music_a, track, protocol, emotion):
         # Update Text Labels
@@ -152,13 +205,86 @@ class App(QWidget):
         scaled_pixmap = pixmap.scaled(self.image_label.width(), self.image_label.height(), Qt.KeepAspectRatio)
         self.image_label.setPixmap(scaled_pixmap)
 
+    def format_time(self, seconds):
+        """Converts raw numerical seconds into standard MM:SS readout strings."""
+        mins = int(seconds) // 60
+        secs = int(seconds) % 60
+        return f"{mins:02d}:{secs:02d}"
+
+    def update_playback_progress(self, elapsed, total):
+        """Updates the media tracking sliders based on internal VLC playback metrics."""
+        self.time_elapsed_label.setText(self.format_time(elapsed))
+        self.time_total_label.setText(self.format_time(total))
+        
+        if total > 0:
+            percentage = int((elapsed / total) * 100)
+            self.progress_slider.setValue(percentage)
+
+    def export_telemetry(self):
+        """Extracts runtime logs from SQLite and compile a standardized evaluation CSV."""
+        
+        # Generate the destination file path right inside the current dataset folder
+        db_source = self.thread.db_path
+        output_dir = os.path.dirname(db_source)
+        output_csv = os.path.join(output_dir, "usability_test_results.csv")
+        
+        print(f"[UI] Initializing telemetry data dump from {db_source}...")
+        conn = sqlite3.connect(db_source)
+        
+        query = """
+            SELECT 
+                p.id AS session_log_id,
+                p.played_at,
+                t.title,
+                t.artist,
+                t.valence AS track_valence,
+                t.arousal AS track_arousal,
+                p.duration_listened_seconds,
+                p.total_duration_seconds,
+                ROUND((CAST(p.duration_listened_seconds AS REAL) / p.total_duration_seconds) * 100, 2) AS listen_percentage,
+                p.explicit_skip
+            FROM playback_history p
+            JOIN tracks t ON p.track_id = t.id
+            ORDER BY p.played_at ASC;
+        """
+        try:
+            df = pd.read_sql_query(query, conn)
+            df.to_csv(output_csv, index=False)
+            
+            self.export_button.setText(f"Export Complete at {output_csv}")
+            self.export_button.setStyleSheet("background-color: #059669; color: white;")
+            print(f"[SUCCESS] Telemetry compiled cleanly: {output_csv}")
+        except Exception as e:
+            print(f"[ERROR] Native export compilation broke: {e}")
+            self.export_button.setText("Export Failed!")
+            self.export_button.setStyleSheet("background-color: #dc2626; color: white;")
+        finally:
+            conn.close()
+
+    @Slot(str)
+    def execute_main_thread_play(self, local_file_path):
+        abs_path = os.path.abspath(local_file_path)
+        
+        # Execute the hardware play command smoothly within the main loop
+        self.player.setSource(QUrl.fromLocalFile(abs_path))
+        self.player.play()
+
+        self.thread.audio_player.change_volume(self.thread.pending_volume)
+        
+        print(f"[MAIN PLAYBACK] Core event loop executing tracking file: {abs_path}")
+
+       
+    
     def closeEvent(self, event):
         self.thread.terminate()
         event.accept()
 
 def main():
-    db_file = os.getenv("SQLITE_DATABASE")
-    ann_file = os.getenv("ANNOY_INDEX")
+    env_db = os.getenv("SQLITE_DATABASE", "music_system.db")
+    env_ann = os.getenv("ANNOY_INDEX", "music_vectors.ann")
+    
+    db_file = os.path.abspath(env_db)
+    ann_file = os.path.abspath(env_ann)
 
     if not os.path.exists(db_file) or not os.path.exists(ann_file):
         print("[FIRST-RUN] Application assets missing. Beginning automated environment compilation...")

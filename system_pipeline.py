@@ -17,8 +17,11 @@ from music_regulator import IsoPrincipleRegulator
 
 class SystemPipelineThread(QThread):
     update_ui_signal = Signal(np.ndarray, float, float, float, float, float, float, str, str, str) 
+    progress_signal = Signal(float, float)
 
-    def __init__(self, db_path="music_system.db", annoy_index_path='music_vectors.ann'):
+    pipeline_request_play_signal = Signal(str)
+
+    def __init__(self, db_path, annoy_index_path, qt_player, qt_audio):
         super().__init__()
         self.mediapipe_path = './models/blaze_face_full_range_sparse.tflite'
 
@@ -32,6 +35,19 @@ class SystemPipelineThread(QThread):
 
         self.db_path = db_path
         self.annoy_index_path = annoy_index_path
+
+        self.qt_player = qt_player
+        self.qt_audio = qt_audio
+
+        self.audio_player = YouTubeQueuePlayer(self.qt_player, self.qt_audio, parent=self)
+        self.audio_player.request_play_signal.connect(self.pipeline_request_play_signal)
+
+        self.pending_volume = None
+
+    def set_volume(self, value):
+        """Thread-safe setter called directly by the UI layout."""
+        with self.lock:
+            self.pending_volume = value
     
     def mp_callback(self, result: vision.FaceDetectorResult, output_image: mp.Image, timestamp_ms: int):
         """This function runs automatically on a background thread when MediaPipe finds a face."""
@@ -58,7 +74,6 @@ class SystemPipelineThread(QThread):
 
         emotion_model = EmotionModel()
         music_regulator = IsoPrincipleRegulator(self.db_path, self.annoy_index_path)
-        audio_player = YouTubeQueuePlayer()
 
         start_time = time.time()
         last_ml_time = 0
@@ -71,6 +86,8 @@ class SystemPipelineThread(QThread):
         raw_v, raw_a = 0.0, 0.0
         engine_status = "Waiting for face..."
         
+        current_track_db_id = None
+        next_track_db_id = None
     
 
         options = FaceDetectorOptions(
@@ -124,23 +141,29 @@ class SystemPipelineThread(QThread):
                     self.skip_flag = False
                     print("[SYSTEM] Skip triggered by user!")
                     
-                    total_duration = audio_player.current_duration
-                    time_played = audio_player.get_elapsed_time()
+                    total_duration = self.audio_player.current_duration
+                    time_played = self.audio_player.get_elapsed_time()
 
                     music_regulator.evaluate_feedback(raw_v, raw_a)
                     music_regulator.db.log_playback(music_regulator.current_track_id, time_played, total_duration, explicit_skip=True)
                     
-                    audio_player.player.stop()
+                    self.audio_player.qt_player.stop()
 
-                    if audio_player.play_next_in_queue():
+                    if self.audio_player.play_next_in_queue():
                         # We already prefetched the next song. Play it instantly
-                        print(f"[SYSTEM] Now Playing: {audio_player.current_track}")   
+                        print(f"[SYSTEM] Now Playing: {self.audio_player.current_track}")   
                     else:
                         # We don't have a song queued yet. 
                         print(f"[SYSTEM] No song queued yet!")  
                 
+                # --- AUDIO VOLUME INTERCEPT ---
+                with self.lock:
+                    if self.pending_volume is not None:
+                        self.audio_player.change_volume(self.pending_volume)
+                        self.pending_volume = None
+
                 # REGULATION LOGIC
-                time_left = audio_player.get_time_remaining()
+                time_left = self.audio_player.get_time_remaining()
                 
                 # Emergency Override
                 if current_emotion == "Angry / Stressed":
@@ -152,56 +175,60 @@ class SystemPipelineThread(QThread):
                         print("[SAFETY INTERRUPT] Continuous driver distress detected for 10s. Engaging Emergency Calm Protocol.")
                         self.emergency_engaged = True
                         
-                        self.fade_out(audio_player)
-                        current_protocol, next_track_string, music_exact_va_data = music_regulator.select_track(raw_v, raw_a, force_calm=True)
+                        self.audio_player.fade_out()
+                        next_track_db_id, current_protocol, next_track_string, music_exact_va_data = music_regulator.select_track(raw_v, raw_a, force_calm=True)
                         print(f"[SYSTEM] Now Fetching '{next_track_string}'...")
                         
-                        audio_player.current_track = None 
-                        audio_player.prefetch_song(next_track_string)
+                        self.audio_player.current_track = None 
+                        current_track_db_id = next_track_db_id
+                        self.audio_player.prefetch_song(next_track_string)
                 else:
                     # Reset variables
                     self.anger_start_time = None
                     self.emergency_engaged = False
                 
 
-                if audio_player.current_track is None:
+                # No music yet
+                if self.audio_player.current_track is None:
 
-                    if not audio_player.is_fetching and audio_player.next_stream_url is None:
-                        current_protocol, initial_track, music_exact_va_data = music_regulator.select_track(raw_v, raw_a)
+                    if not self.audio_player.is_fetching and self.audio_player.next_stream_url is None:
+                        next_track_db_id, current_protocol, initial_track, music_exact_va_data = music_regulator.select_track(raw_v, raw_a)
 
                         print(f"[SYSTEM] Cold Start: Fetching '{initial_track}'...")
-                        audio_player.prefetch_song(initial_track)
+                        self.audio_player.prefetch_song(initial_track)
 
-                    elif not audio_player.is_fetching:
-                        if audio_player.play_next_in_queue():
+                    elif not self.audio_player.is_fetching:
+                        if self.audio_player.play_next_in_queue():
+                            current_track_db_id = next_track_db_id
                             # We already prefetched the next song. Play it instantly
-                            print(f"[SYSTEM] Now Playing: {audio_player.current_track}")      
+                            print(f"[SYSTEM] Now Playing: {self.audio_player.current_track}")      
                         else:
                             # We don't have a song queued yet. 
                             print(f"[SYSTEM] No song queued yet!")  
                     
                 else:
 
-                    if time_left > 0 and time_left < 45 and not audio_player.is_fetching and audio_player.next_stream_url is None:
+                    if time_left > 0 and time_left < 45 and not self.audio_player.is_fetching and self.audio_player.next_stream_url is None:
 
                         music_regulator.evaluate_feedback(raw_v, raw_a)
-                        current_protocol, next_track_string, music_exact_va_data = music_regulator.select_track(raw_v, raw_a)
+                        next_track_db_id, current_protocol, next_track_string, music_exact_va_data = music_regulator.select_track(raw_v, raw_a)
 
                         print(f"[SYSTEM] Queueing up next track: {next_track_string}...")
-                        audio_player.prefetch_song(next_track_string)
+                        self.audio_player.prefetch_song(next_track_string)
 
-                    if time_left <= 0 and not audio_player.is_fetching and audio_player.next_stream_url is not None: 
+                    if time_left <= 0 and not self.audio_player.is_fetching and self.audio_player.next_stream_url is not None: 
 
-                        total_duration = audio_player.current_duration
-                        time_played = audio_player.current_duration
+                        total_duration = self.audio_player.current_duration
+                        time_played = self.audio_player.current_duration
 
                         music_regulator.evaluate_feedback(raw_v, raw_a)
-                        music_regulator.db.log_playback(music_regulator.current_track_id, time_played, total_duration, explicit_skip=False)
+                        music_regulator.db.log_playback(current_track_db_id, time_played, total_duration, explicit_skip=False)
                     
 
-                        if audio_player.play_next_in_queue():
+                        if self.audio_player.play_next_in_queue():
                             # We already prefetched the next song. Play it instantly
-                            print(f"[SYSTEM] Now Playing: {audio_player.current_track}")   
+                            current_track_db_id = next_track_db_id
+                            print(f"[SYSTEM] Now Playing: {self.audio_player.current_track}")   
                         else:
                             # We don't have a song queued yet. 
                             print(f"[SYSTEM] No song queued yet!") 
@@ -212,9 +239,17 @@ class SystemPipelineThread(QThread):
                 music_v = music_exact_va_data[0]
                 music_a = music_exact_va_data[1]
 
+                # --- EMIT PROGRESS METRICS ---
+                if self.audio_player.current_track is not None:
+                    elapsed = self.audio_player.get_elapsed_time()
+                    total = float(self.audio_player.current_duration)
+                    self.progress_signal.emit(elapsed, total)
+                else:
+                    self.progress_signal.emit(0.0, 1.0)
+
                 self.update_ui_signal.emit(
                     frame, raw_v, raw_a, target_v, target_a, music_v, music_a,
-                    str(audio_player.current_track), 
+                    str(self.audio_player.current_track), 
                     current_protocol, current_emotion)
 
     def va_to_emotion(self, arousal, valence):
@@ -232,18 +267,6 @@ class SystemPipelineThread(QThread):
             return "Sad / Fatigued"
         else:
             return "Transitioning..."
-
-    def fade_out(self, audio_player: YouTubeQueuePlayer):
-        # audio fade-out sequence using VLC volume adjustments
-        initial_vol = audio_player.player.audio_get_volume()
-        for vol in range(initial_vol, -1, -5):
-            audio_player.player.audio_set_volume(vol)
-            # Progressively drops audio levels over ~1.5 seconds
-            time.sleep(0.05) 
-            
-            
-        audio_player.player.stop()
-        audio_player.player.audio_set_volume(initial_vol)
 
     def request_skip(self):
         """Called by main to request a track skip."""

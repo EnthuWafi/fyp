@@ -53,3 +53,46 @@ QPushButton#skipButton:hover {
 QPushButton#skipButton:pressed {
     background-color: #434c5e;
 }
+
+QSlider::groove:horizontal {
+    border: 1px solid #4c566a;
+    height: 6px;
+    background: #2e3440;
+    border-radius: 3px;
+}
+
+QSlider::sub-page:horizontal {
+    background: #3b82f6; /* Accent color tracking elapsed distance */
+    border-radius: 3px;
+}
+
+QSlider::handle:horizontal {
+    background: #d8dee9;
+    border: 1px solid #4c566a;
+    width: 12px;
+    margin: -3px 0;
+    border-radius: 6px;
+}
+
+QSlider#volumeSlider::sub-page:horizontal {
+    background: #52d398; /* Emerald green theme accent for volume status */
+}
+
+QPushButton#exportButton {
+    background-color: #1e293b;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    color: #f8fafc;
+    font-weight: bold;
+    font-size: 13px;
+    margin-top: 5px;
+}
+
+QPushButton#exportButton:hover {
+    background-color: #334155;
+    border: 1px solid #64748b;
+}
+
+QPushButton#exportButton:pressed {
+    background-color: #0f172a;
+}

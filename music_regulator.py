@@ -101,8 +101,8 @@ class IsoPrincipleRegulator:
             # self.active_protocol = "Calm Down Protocol" if not force_calm else "Emergency Calm Protocol"
             if force_calm:
                 self.active_protocol = "Emergency Calm Protocol"
-                self.bias_multiplier_v = 2.0
-                self.bias_multiplier_a = 2.0
+                self.bias_multiplier_v = 1.5
+                self.bias_multiplier_a = 1.5
             else:
                 self.active_protocol = "Calm Down Protocol"
                 
@@ -149,7 +149,8 @@ class IsoPrincipleRegulator:
 
         track_string = f"{result[1]} - {result[2]}"
         va_data = [result[3], result[4]] #maybe return the exact va data too
-        return self.active_protocol, track_string, va_data
+
+        return self.current_track_id, self.active_protocol, track_string, va_data
     
     
     def close(self):

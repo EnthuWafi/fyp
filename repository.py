@@ -60,7 +60,7 @@ class MusicRepository:
         
         m_v = 1.0 * bias_v
         if active_protocol == "Emergency Calm Protocol":
-            m_a = -3.5 * bias_a  
+            m_a = -1.5 * bias_a  
         if active_protocol == "Calm Down Protocol":
             m_a = -1.0 * bias_a
         elif active_protocol == "Ramp Up Protocol":
