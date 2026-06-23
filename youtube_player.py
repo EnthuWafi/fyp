@@ -232,5 +232,8 @@ class YouTubeQueuePlayer(QObject):
     def change_volume(self, volume_changed):
         # self.volume = volume_changed
         # self.player.audio_set_volume(self.volume)
+        if volume_changed is None:
+            volume_changed = 0.0
+            
         volume_float = max(0.0, min(1.0, volume_changed / 100.0))
         self.qt_audio.setVolume(volume_float)

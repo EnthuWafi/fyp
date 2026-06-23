@@ -1,6 +1,7 @@
 # repository.py
 # import psycopg2
 import sqlite3
+import pandas as pd
 import os
 # from dotenv import load_dotenv
 
@@ -95,6 +96,7 @@ class MusicRepository:
         query = "SELECT id, title, artist, valence, arousal FROM tracks WHERE annoy_id = ?;"
         self.cursor.execute(query, (backup_annoy_id,))
         return self.cursor.fetchone()
+
 
     def close(self):
         self.cursor.close()

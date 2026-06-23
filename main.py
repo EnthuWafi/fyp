@@ -12,6 +12,7 @@ from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from system_pipeline import SystemPipelineThread 
 from russell_graph import RussellGraph
 from setup import setup_database
+from export_telemetry import get_telemetry
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -230,25 +231,9 @@ class App(QWidget):
         
         print(f"[UI] Initializing telemetry data dump from {db_source}...")
         conn = sqlite3.connect(db_source)
-        
-        query = """
-            SELECT 
-                p.id AS session_log_id,
-                p.played_at,
-                t.title,
-                t.artist,
-                t.valence AS track_valence,
-                t.arousal AS track_arousal,
-                p.duration_listened_seconds,
-                p.total_duration_seconds,
-                ROUND((CAST(p.duration_listened_seconds AS REAL) / p.total_duration_seconds) * 100, 2) AS listen_percentage,
-                p.explicit_skip
-            FROM playback_history p
-            JOIN tracks t ON p.track_id = t.id
-            ORDER BY p.played_at ASC;
-        """
+
         try:
-            df = pd.read_sql_query(query, conn)
+            df = get_telemetry(conn)
             df.to_csv(output_csv, index=False)
             
             self.export_button.setText(f"Export Complete at {output_csv}")
