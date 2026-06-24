@@ -25,7 +25,7 @@ class App(QWidget):
             with open("style.qss", "r") as f:
                 self.setStyleSheet(f.read())
         except FileNotFoundError:
-            pass # Failsafe if style.qss is missing
+            pass
 
         self.setWindowTitle("Driver Music Regulation System")
         self.resize(1000, 600)

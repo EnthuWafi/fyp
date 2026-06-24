@@ -1,11 +1,7 @@
 # repository.py
-# import psycopg2
 import sqlite3
 import pandas as pd
 import os
-# from dotenv import load_dotenv
-
-# load_dotenv()
 
 class MusicRepository:
     def __init__(self, db_path="music_system.db"):
@@ -44,20 +40,7 @@ class MusicRepository:
         Filters the Annoy IDs against recent history and applies the sorting rule
         """
 
-        # w_acoustic, w_loud, w_dance = 0.0, 0.0, 0.0
         m_v, m_a = 0.0, 0.0
-
-        # if active_protocol == "Calm Down Protocol":
-        #     # High acoustic (lower arousal) and lower loudness (increase valence)
-        #     w_acoustic = 1.0 * bias_a
-        #     w_loud = -1.0 * bias_v 
-        #     w_dance = 1.0 * bias_v
-
-        # elif active_protocol == "Ramp Up Protocol":
-        #     # Lower acoustic (higher arousal) and lower loudness (increase valence)
-        #     w_acoustic = -1.0 * bias_a
-        #     w_loud = -1.0 * bias_v 
-        #     w_dance = 1.0 * bias_v
         
         m_v = 1.0 * bias_v
         if active_protocol == "Emergency Calm Protocol":

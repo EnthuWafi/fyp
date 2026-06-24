@@ -128,24 +128,8 @@ class IsoPrincipleRegulator:
             print(f"[FEEDBACK] Could not find any good candidate, playing fallback track.")
             result = self.db.get_fallback_track(nearest_neighbors[0])
         
-        # best_match_idx = None
-        # for idx in nearest_neighbors:
-        #     if idx not in self.recently_played:
-        #         best_match_idx = idx
-        #         break
-                
-        # # Fallback if somehow all 10 were played recently
-        # if best_match_idx is None:
-        #     best_match_idx = nearest_neighbors[0] 
-
-        # # Update History
-        # self.recently_played.append(best_match_idx)
-        # if len(self.recently_played) > 20: # Keep memory clean
-        #     self.recently_played.pop(0)
-
         # Fetch Track Data
         self.current_track_id = result[0]
-        # best_match = self.df.iloc[best_match_idx]
 
         track_string = f"{result[1]} - {result[2]}"
         va_data = [result[3], result[4]] #maybe return the exact va data too

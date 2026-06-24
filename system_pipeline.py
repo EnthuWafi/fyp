@@ -169,14 +169,6 @@ class SystemPipelineThread(QThread):
                             engine_status = emotion_data['engine']
                             current_emotion = self.va_to_emotion(raw_a, raw_v)
                         last_ml_time = current_time
-                        # cropped_face = frame[y:y+h, x:x+w]
-                        # if cropped_face.size > 0:
-                        #     emotion_data = emotion_model.predict(cropped_face)
-                        #     raw_v = emotion_data['valence']
-                        #     raw_a = emotion_data['arousal']
-                        #     engine_status = emotion_data['engine']
-                        #     current_emotion = self.va_to_emotion(raw_a, raw_v)
-                        # last_ml_time = current_time
 
                 # --- PRINT---
                 if (current_time - last_print_time) >= 1.0:
