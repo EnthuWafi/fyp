@@ -250,11 +250,11 @@ class App(QWidget):
     def execute_main_thread_play(self, local_file_path):
         abs_path = os.path.abspath(local_file_path)
         
-        # Execute the hardware play command smoothly within the main loop
         self.player.setSource(QUrl.fromLocalFile(abs_path))
         self.player.play()
 
-        self.thread.audio_player.change_volume(self.thread.pending_volume)
+        current_vol = self.volume_slider.value()
+        self.thread.audio_player.change_volume(current_vol)
         
         print(f"[MAIN PLAYBACK] Core event loop executing tracking file: {abs_path}")
 
