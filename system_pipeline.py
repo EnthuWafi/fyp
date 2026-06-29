@@ -44,6 +44,13 @@ class SystemPipelineThread(QThread):
 
         self.pending_volume = 100
 
+        self.is_running = True
+
+    def stop_pipeline(self):
+        """Safely updates the loop state from the main thread interface."""
+        with self.lock:
+            self.is_running = False
+
     def set_volume(self, value):
         """Thread-safe setter called directly by the UI layout."""
         with self.lock:
@@ -109,7 +116,7 @@ class SystemPipelineThread(QThread):
             result_callback=self.mp_callback)
 
         with FaceDetector.create_from_options(options) as detector:            
-            while True:
+            while self.is_running:
                 ret, frame = cap.read()
                 if not ret: continue
                 
@@ -289,6 +296,12 @@ class SystemPipelineThread(QThread):
                     frame, raw_v, raw_a, target_v, target_a, music_v, music_a,
                     str(self.audio_player.current_track), 
                     current_protocol, current_emotion)
+                
+            print("[SHUTDOWN] Releasing camera hardware interface...")
+            cap.release()
+            print("[SHUTDOWN] Closing active SQLite connection registries...")
+            music_regulator.close()
+            print("[SHUTDOWN] Pipeline thread terminated cleanly.")
 
     def va_to_emotion(self, arousal, valence):
         distance_from_middle = 0.1

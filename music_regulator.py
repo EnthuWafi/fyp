@@ -106,13 +106,13 @@ class IsoPrincipleRegulator:
             else:
                 self.active_protocol = "Calm Down Protocol"
                 
-            self.target_v = min(1.0, current_valence + (0.2 * self.bias_multiplier_v))
-            self.target_a = max(-1.0, current_arousal - (0.2 * self.bias_multiplier_a))
+            self.target_v = min(1.0, current_valence + (0.1 * self.bias_multiplier_v))
+            self.target_a = max(-1.0, current_arousal - (0.1 * self.bias_multiplier_a))
             
         elif current_valence < 0 and current_arousal < 0:
             self.active_protocol = "Ramp Up Protocol"
-            self.target_v = min(1.0, current_valence + (0.2 * self.bias_multiplier_v))
-            self.target_a = min(1.0, current_arousal + (0.2 * self.bias_multiplier_a))
+            self.target_v = min(1.0, current_valence + (0.1 * self.bias_multiplier_v))
+            self.target_a = min(1.0, current_arousal + (0.1 * self.bias_multiplier_a))
 
         # Annoy logic
         nearest_neighbors = self.annoy_index.get_nns_by_vector([self.target_v, self.target_a], 50)

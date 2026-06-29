@@ -71,8 +71,9 @@ class EmotionModel:
         current_time = time.time()
         if len(self.history_queue) > 0:
             time_since_last_frame = current_time - self.history_queue[-1][0]
-            if time_since_last_frame > 2.0: # 2 seconds of missing face
+            if time_since_last_frame > self.max_time_gap:
                 self.history_queue.clear()
+                self.prediction_buffer.clear()
                 print("[WARN] Face tracking lost. Flushing temporal memory.")
 
         self.history_queue.append((current_time, raw_logits))
@@ -94,6 +95,14 @@ class EmotionModel:
             v_a_prediction = self.gru_interp.get_tensor(self.gru_out)[0]
             
             active_engine = "GRU (L=15)"
+
+            self.last_valid_prediction = {
+                "valence": round(float(v_a_prediction[0]), 2), 
+                "arousal": round(float(v_a_prediction[1]), 2),
+                "engine": active_engine
+            }
+
+            return self.last_valid_prediction
         else:
             # Early Exit. 
             # This will run if the confidence exceed a certain level, or if it does not have enough
@@ -104,7 +113,7 @@ class EmotionModel:
             self.slp_interp.invoke()
             v_a_prediction = self.slp_interp.get_tensor(self.slp_out)[0]
 
-            active_engine = f"SLP Early Exit (Conf: {confidence:.2f}, L={current_l}"
+            active_engine = f"SLP Early Exit (Conf: {confidence:.2f}, L={current_l})"
 
         self.prediction_buffer.append((float(v_a_prediction[0]), float(v_a_prediction[1])))
         

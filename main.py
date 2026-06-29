@@ -256,12 +256,13 @@ class App(QWidget):
         current_vol = self.volume_slider.value()
         self.thread.audio_player.change_volume(current_vol)
         
-        print(f"[MAIN PLAYBACK] Core event loop executing tracking file: {abs_path}")
-
-       
+        print(f"[MAIN PLAYBACK] Core event loop executing tracking file: {abs_path}")    
     
     def closeEvent(self, event):
-        self.thread.terminate()
+        print("[EXIT] Initializing graceful application shutdown sequence...")
+        self.thread.stop_pipeline()
+        self.player.stop()
+        self.thread.wait()
         event.accept()
 
 def main():
