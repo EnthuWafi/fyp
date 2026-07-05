@@ -1,8 +1,10 @@
+import csv
+import os
 import sqlite3
-import pandas as pd
 
-def get_telemetry(conn):
-    """Extracts runtime logs from SQLite and compile a standardized evaluation CSV."""
+
+def get_telemetry_cursor(conn):
+    """Executes the query and returns the cursor along with column headers."""
 
     query = """
         SELECT 
@@ -20,7 +22,11 @@ def get_telemetry(conn):
         JOIN tracks t ON p.track_id = t.id
         ORDER BY p.played_at ASC;
     """
- 
-    df = pd.read_sql_query(query, conn)
 
-    return df
+    cursor = conn.cursor()
+    cursor.execute(query)
+
+    # Extract column headers from the cursor description
+    headers = [description[0] for description in cursor.description]
+
+    return cursor, headers

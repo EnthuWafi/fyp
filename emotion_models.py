@@ -19,9 +19,9 @@ class EmotionModel:
         abs_gru  = os.path.join(base_dir, gru_path)
         abs_slp  = os.path.join(base_dir, slp_path)
 
-        self.enet_interp = Interpreter(model_path=enet_path)
-        self.gru_interp  = Interpreter(model_path=gru_path)
-        self.slp_interp  = Interpreter(model_path=slp_path)
+        self.enet_interp = Interpreter(model_path=abs_enet)
+        self.gru_interp  = Interpreter(model_path=abs_gru)
+        self.slp_interp  = Interpreter(model_path=abs_slp)
         
         self.enet_interp.allocate_tensors()
         self.gru_interp.allocate_tensors()

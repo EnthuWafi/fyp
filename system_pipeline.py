@@ -3,6 +3,7 @@ import cv2
 import time
 import numpy as np
 import threading
+import os
 from collections import deque
 
 from PySide6.QtCore import Signal, QThread
@@ -23,7 +24,12 @@ class SystemPipelineThread(QThread):
 
     def __init__(self, db_path, annoy_index_path, qt_player, qt_audio):
         super().__init__()
-        self.mediapipe_path = './models/blaze_face_full_range_sparse.tflite'
+        
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        abs_mediapipe = os.path.join(base_dir, 'models/blaze_face_full_range_sparse.tflite')
+
+        self.mediapipe_path = abs_mediapipe
 
         self.skip_flag = False
 
@@ -133,41 +139,51 @@ class SystemPipelineThread(QThread):
                 if local_face:
                     x, y, w, h = local_face['bbox']
                     kps = local_face['keypoints']
-                    # margin = int(h * 0.1)
-                    # x_m, y_m = max(0, x - margin), max(0, y - margin)
-                    # w_m, h_m = min(frame.shape[1] - x_m, w + 2*margin), min(frame.shape[0] - y_m, h + 2*margin)
                     h_max, w_max, _ = frame.shape
-                    x, y = max(0, x), max(0, y)
-                    w, h = min(w, w_max - x), min(h, h_max - y)
 
-                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    x_plot, y_plot = max(0, x), max(0, y)
+                    w_plot, h_plot = min(w, w_max - x_plot), min(h, h_max - y_plot)
+                    cv2.rectangle(frame, (x_plot, y_plot), (x_plot+w_plot, y_plot+h_plot), (0, 255, 0), 2)
                     
                     # --- ML INFERENCE ---
                     # Only runs if a face is present AND 0.1 seconds have passed
                     if (current_time - last_ml_time) >= 0.1: 
                         if len(kps) >= 2:
-                            # Map normalized keypoint floats to absolute pixel locations
-                            p1 = np.array([kps[0][0] * w_max, kps[0][1] * h_max])
-                            p2 = np.array([kps[1][0] * w_max, kps[1][1] * h_max])
+                            # Map normalized landmarks to absolute pixel coordinates
+                            p1 = np.array([kps[0][0] * w_max, kps[0][1] * h_max])  # Left eye
+                            p2 = np.array([kps[1][0] * w_max, kps[1][1] * h_max])  # Right eye
                             
-                            # Calculate the rotational angle between the left and right eyes
+                            # Calculate spatial distance and rotation vector angle
                             dx = p2[0] - p1[0]
                             dy = p2[1] - p1[1]
                             angle = np.degrees(np.arctan2(dy, dx))
                             
-                            # Standardize direction to maintain an upright head orientation
                             if abs(angle) > 45:
                                 angle = 0.0
                             
-                            # Compute the transformation center at the midpoint of the eyes
-                            eye_center = (float((p1[0] + p2[0]) / 2.0), float((p1[1] + p2[1]) / 2.0))
-                            rot_matrix = cv2.getRotationMatrix2D(eye_center, angle, 1.0)
+                            # Define target dimension metrics (224x224 matches EfficientNet backbones)
+                            desired_w, desired_h = 224, 224
+                            desired_left_eye_x = 0.35  # Eye placement padding constraint
                             
-                            # Warp the entire frame to flatten the eye plane horizontally
-                            aligned_frame = cv2.warpAffine(frame, rot_matrix, (w_max, h_max))
-                            cropped_face = aligned_frame[y:y+h, x:x+w]
+                            desired_dist = desired_w * (1.0 - 2.0 * desired_left_eye_x)
+                            current_dist = np.sqrt(dx**2 + dy**2)
+                            
+                            # Determine scaling ratio to fill the target box boundaries cleanly
+                            scale = desired_dist / max(current_dist, 1e-6)
+                            
+                            # Create rotation matrix centered at the eye midpoint
+                            eye_center = (float((p1[0] + p2[0]) / 2.0), float((p1[1] + p2[1]) / 2.0))
+                            rot_matrix = cv2.getRotationMatrix2D(eye_center, angle, scale)
+                            
+                            # Inject translation shifts to position eyes at target locations
+                            rot_matrix[0, 2] += (desired_w * 0.5) - eye_center[0]
+                            rot_matrix[1, 2] += (desired_h * 0.35) - eye_center[1]
+                            
+                            # Warp the region directly into the clean target canvas size
+                            cropped_face = cv2.warpAffine(frame, rot_matrix, (desired_w, desired_h))
                         else:
-                            cropped_face = frame[y:y+h, x:x+w]
+                            # Fallback container slicing if landmarks fail
+                            cropped_face = frame[y_plot:y_plot+h_plot, x_plot:x_plot+w_plot]
                         
                         if cropped_face.size > 0:
                             emotion_data = emotion_model.predict(cropped_face)

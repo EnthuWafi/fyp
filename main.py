@@ -1,9 +1,19 @@
 # main.py
-import os
 import sys
+from types import ModuleType
+
+# Fool MediaPipe into thinking Matplotlib is already loaded in RAM
+fake_matplotlib = ModuleType("matplotlib")
+fake_matplotlib.pyplot = ModuleType("pyplot")
+
+sys.modules["matplotlib"] = fake_matplotlib
+sys.modules["matplotlib.pyplot"] = fake_matplotlib.pyplot
+
+
+import os
 import cv2
+import csv
 import sqlite3
-import pandas as pd
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QSlider
 from PySide6.QtGui import QImage, QPixmap, QFont, QPainter, QPen, QBrush, QColor
 from PySide6.QtCore import Slot, Qt, QRectF, QUrl
@@ -12,7 +22,7 @@ from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from system_pipeline import SystemPipelineThread 
 from russell_graph import RussellGraph
 from setup import setup_database
-from export_telemetry import get_telemetry
+from export_telemetry import get_telemetry_cursor
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -233,8 +243,13 @@ class App(QWidget):
         conn = sqlite3.connect(db_source)
 
         try:
-            df = get_telemetry(conn)
-            df.to_csv(output_csv, index=False)
+            cursor, headers = get_telemetry_cursor(conn)
+            with open(
+                output_csv, mode="w", newline="", encoding="utf-8"
+            ) as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                writer.writerows(cursor)
             
             self.export_button.setText(f"Export Complete at {output_csv}")
             self.export_button.setStyleSheet("background-color: #059669; color: white;")

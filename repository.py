@@ -1,6 +1,5 @@
 # repository.py
 import sqlite3
-import pandas as pd
 import os
 
 class MusicRepository:
