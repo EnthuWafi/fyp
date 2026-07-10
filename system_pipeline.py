@@ -83,10 +83,9 @@ class SystemPipelineThread(QThread):
 
 
     def run(self):
-        camera_index = 1
+        camera_index = 0
         cap = cv2.VideoCapture(camera_index)
-        # face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-
+        
         # make face detector
         BaseOptions = mp.tasks.BaseOptions
         FaceDetector = mp.tasks.vision.FaceDetector
@@ -248,6 +247,7 @@ class SystemPipelineThread(QThread):
                 if self.audio_player.current_track is None:
 
                     if not self.audio_player.is_fetching and self.audio_player.next_stream_url is None:
+                        music_regulator.evaluate_feedback(raw_v, raw_a)
                         next_track_db_id, current_protocol, initial_track, music_exact_va_data = music_regulator.select_track(raw_v, raw_a)
 
                         print(f"[SYSTEM] Cold Start: Fetching '{initial_track}'...")
@@ -277,7 +277,7 @@ class SystemPipelineThread(QThread):
                         total_duration = self.audio_player.current_duration
                         time_played = self.audio_player.current_duration
 
-                        music_regulator.evaluate_feedback(raw_v, raw_a)
+                        # music_regulator.evaluate_feedback(raw_v, raw_a)
                         music_regulator.db.log_playback(current_track_db_id, time_played, total_duration, explicit_skip=False)
                     
 

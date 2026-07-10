@@ -59,8 +59,7 @@ class EmotionModel:
         # Formula: image = (image - mean) / std
         face_norm = face_rgb.astype(np.float32) / 255.0
         face_norm = (face_norm - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]
-        
-        expected_shape = self.enet_in['shape']
+
         face_input = np.expand_dims(face_norm, axis=0).astype(np.float32)
         
         #Extract the Raw Logits
@@ -116,16 +115,16 @@ class EmotionModel:
 
             active_engine = f"SLP Early Exit (Conf: {confidence:.2f}, L={current_l})"
 
-        self.prediction_buffer.append((float(v_a_prediction[0]), float(v_a_prediction[1])))
+            self.prediction_buffer.append((float(v_a_prediction[0]), float(v_a_prediction[1])))
         
-        # calc mathematical mean across the prediction history window
-        smoothed_v = np.mean([pred[0] for pred in self.prediction_buffer])
-        smoothed_a = np.mean([pred[1] for pred in self.prediction_buffer])
+            # calc mathematical mean across the prediction history window
+            smoothed_v = np.mean([pred[0] for pred in self.prediction_buffer])
+            smoothed_a = np.mean([pred[1] for pred in self.prediction_buffer])
 
-        self.last_valid_prediction = {
-            "valence": round(float(smoothed_v), 2), 
-            "arousal": round(float(smoothed_a), 2),
-            "engine": active_engine
-        }
+            self.last_valid_prediction = {
+                "valence": round(float(smoothed_v), 2), 
+                "arousal": round(float(smoothed_a), 2),
+                "engine": active_engine
+            }
 
-        return self.last_valid_prediction
+            return self.last_valid_prediction

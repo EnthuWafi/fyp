@@ -221,4 +221,5 @@ temp_music/
 
 dataset/
 
+!pysidedeploy.spec
 driver_app.bin
