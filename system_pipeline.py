@@ -1,5 +1,6 @@
 # system_pipeline.py
 import cv2
+
 import time
 import numpy as np
 import threading
@@ -83,9 +84,11 @@ class SystemPipelineThread(QThread):
 
 
     def run(self):
-        camera_index = 0
-        cap = cv2.VideoCapture(camera_index)
-        
+
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened(): cap = cv2.VideoCapture(1)
+
+
         # make face detector
         BaseOptions = mp.tasks.BaseOptions
         FaceDetector = mp.tasks.vision.FaceDetector

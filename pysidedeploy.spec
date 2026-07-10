@@ -1,7 +1,7 @@
 [app]
 
 # title of your application
-title = driver_app
+title = pyside_app_demo
 
 # project root directory. default = The parent directory of input_file
 project_dir = .
@@ -16,12 +16,12 @@ exec_directory = .
 project_file = 
 
 # application icon
-icon = /home/pasokon/anaconda3/envs/fyp_app/lib/python3.14/site-packages/PySide6/scripts/deploy_lib/pyside_icon.jpg
+icon = /home/pasokon/anaconda3/envs/fyp_app/lib/python3.12/site-packages/PySide6/scripts/deploy_lib/pyside_icon.jpg
 
 [python]
 
 # python path
-python_path = /home/pasokon/anaconda3/envs/fyp_app/bin/python3.14
+python_path = /home/pasokon/anaconda3/envs/fyp_app/bin/python
 
 # python packages to install
 packages = Nuitka==4.0
@@ -40,13 +40,11 @@ qml_files =
 excluded_qml_plugins = 
 
 # qt modules used. comma separated
-# modules = Concurrent,Core,DBus,Gui,Multimedia,Network,Widgets
 modules = Concurrent,Core,DBus,Gui,Multimedia,Network,Widgets
 
 # qt plugins used by the application. only relevant for desktop deployment
 # for qt plugins used in android application see [android][plugins]
-# plugins = accessiblebridge,egldeviceintegrations,generic,iconengines,imageformats,multimedia,networkaccess,networkinformation,platforminputcontexts,platforms,platforms/darwin,platformthemes,styles,tls,wayland-decoration-client,wayland-graphics-integration-client,wayland-shell-integration,xcbglintegrations
-plugins = iconengines,imageformats,multimedia,platforms,styles
+plugins = accessiblebridge,egldeviceintegrations,generic,iconengines,imageformats,multimedia,networkaccess,networkinformation,platforminputcontexts,platforms,platforms/darwin,platformthemes,styles,tls,wayland-decoration-client,wayland-graphics-integration-client,wayland-shell-integration,xcbglintegrations
 
 [android]
 
@@ -70,7 +68,7 @@ macos.permissions =
 mode = onefile
 
 # specify any extra nuitka arguments
-extra_args = --quiet --noinclude-qt-translations --include-package-data=mediapipe --static-libpython=no --noinclude-dlls=*.test --nofollow-import-to=matplotlib --nofollow-import-to=tkinter  --include-data-dir=models=models --include-data-files=style.qss=style.qss
+extra_args = --quiet --noinclude-qt-translations
 
 [buildozer]
 
