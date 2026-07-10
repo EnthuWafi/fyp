@@ -3,18 +3,15 @@ import cv2
 import time
 import numpy as np
 import threading
-import os
-from collections import deque
-
+from pathlib import Path
 from PySide6.QtCore import Signal, QThread
-from youtube_player import YouTubeQueuePlayer
-
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 from emotion_models import EmotionModel
 from music_regulator import IsoPrincipleRegulator
+from youtube_player import YouTubeQueuePlayer
 
 class SystemPipelineThread(QThread):
     update_ui_signal = Signal(np.ndarray, float, float, float, float, float, float, str, str, str) 
@@ -25,11 +22,9 @@ class SystemPipelineThread(QThread):
     def __init__(self, db_path, annoy_index_path, qt_player, qt_audio):
         super().__init__()
         
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        abs_mediapipe = os.path.join(base_dir, 'models/blaze_face_full_range_sparse.tflite')
+        base_dir = Path(__file__).resolve().parent
 
-        self.mediapipe_path = abs_mediapipe
+        self.mediapipe_path = base_dir / "models" / "blaze_face_short_range.tflite"
 
         self.skip_flag = False
 
@@ -117,7 +112,7 @@ class SystemPipelineThread(QThread):
     
 
         options = FaceDetectorOptions(
-            base_options=BaseOptions(model_asset_path=self.mediapipe_path),
+            base_options=BaseOptions(model_asset_path=str(self.mediapipe_path)),
             running_mode=VisionRunningMode.LIVE_STREAM,
             result_callback=self.mp_callback)
 

@@ -1,23 +1,24 @@
 import cv2
 import numpy as np
-import os
 import time
 from ai_edge_litert.interpreter import Interpreter
 from collections import deque
+from pathlib import Path
 
 class EmotionModel:
     def __init__(self, 
-                 enet_path='models/enet_b0_8_best_vgaf_float32.tflite', 
-                 gru_path='models/edge_gru_modelv3.tflite', 
-                 slp_path='models/enet_slp_modelv3.tflite'):
+                 enet_path='enet_b0_8_best_vgaf_float32.tflite', 
+                 gru_path='edge_gru_modelv3.tflite', 
+                 slp_path='enet_slp_modelv3.tflite'):
         
         print("[INFO] Loading TFLite Edge Models (ENet + GRU + MLP)...")
 
-        base_dir = os.path.dirname(os.path.abspath(__file__))
+        base_dir = Path(__file__).resolve().parent
+        model_dir = base_dir / "models"
         
-        abs_enet = os.path.join(base_dir, enet_path)
-        abs_gru  = os.path.join(base_dir, gru_path)
-        abs_slp  = os.path.join(base_dir, slp_path)
+        abs_enet = model_dir / enet_path
+        abs_gru  = model_dir / gru_path
+        abs_slp  = model_dir / slp_path
 
         self.enet_interp = Interpreter(model_path=abs_enet)
         self.gru_interp  = Interpreter(model_path=abs_gru)

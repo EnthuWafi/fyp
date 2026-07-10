@@ -5,17 +5,16 @@ from annoy import AnnoyIndex
 from repository import MusicRepository
 
 class IsoPrincipleRegulator:
-    def __init__(self, db_path="music_system.db", annoy_index_path='music_vectors.ann'):
+    def __init__(self, db_path, annoy_index_path):
         print("[INFO] Initializing Adaptive Music Regulation Logic...")
     
         self.f = 2 
         self.annoy_index = AnnoyIndex(self.f, 'euclidean')
         if os.path.exists(annoy_index_path):
-            self.annoy_index.load(annoy_index_path)
+            self.annoy_index.load(str(annoy_index_path))
         else:
             raise FileNotFoundError(f"Missing {annoy_index_path}. Run setup.py first.")
 
-        # Instantiate the Data Repository
         self.db = MusicRepository(db_path)
             
         # Adaptive Step

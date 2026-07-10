@@ -4,19 +4,24 @@ import os
 import sqlite3
 from annoy import AnnoyIndex
 import kagglehub
+from pathlib import Path
 
-
-def setup_database(db_path="music_system.db", ann_path="music_vectors.ann"):
+def setup_database(db_path, ann_path):
     # Download Dataset
-    csv_path = "./dataset/spotify_data.csv"
+    if hasattr(sys, "frozen") or "NUITKA_PACKAGE_HOME" in os.environ:
+        base_dir = Path(sys.argv[0]).resolve().parent
+    else:
+        base_dir = Path(__file__).resolve().parent
+    dataset_path = base_dir / "dataset"
+    csv_path = base_dir / "dataset" / "spotify_data.csv"
 
     # Check if the target CSV file already exists
     if not os.path.exists(csv_path):
         print("Downloading 1M Spotify dataset...")
         path = kagglehub.dataset_download(
-            "amitanshjoshi/spotify-1million-tracks", output_dir="./dataset"
+            "amitanshjoshi/spotify-1million-tracks", output_dir=str(dataset_path)
         )
-        csv_path = os.path.join(path, "spotify_data.csv")
+
     else:
         print("[INFO] Spotify dataset found. Skipping download.")
 
@@ -130,7 +135,7 @@ def setup_database(db_path="music_system.db", ann_path="music_vectors.ann"):
     # Save Annoy File
     print("Building Annoy trees...")
     t.build(10)
-    t.save(ann_path)
+    t.save(str(ann_path))
     print("music_vectors.ann saved successfully!")
 
     # Bulk Insert into SQLite

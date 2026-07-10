@@ -9,7 +9,7 @@ fake_matplotlib.pyplot = ModuleType("pyplot")
 sys.modules["matplotlib"] = fake_matplotlib
 sys.modules["matplotlib.pyplot"] = fake_matplotlib.pyplot
 
-
+from pathlib import Path
 import os
 import cv2
 import csv
@@ -23,9 +23,6 @@ from system_pipeline import SystemPipelineThread
 from russell_graph import RussellGraph
 from setup import setup_database
 from export_telemetry import get_telemetry_cursor
-from dotenv import load_dotenv
-
-load_dotenv()
 
 class App(QWidget):
     def __init__(self, db_path="music_system.db", annoy_index_path='music_vectors.ann'):
@@ -234,10 +231,12 @@ class App(QWidget):
     def export_telemetry(self):
         """Extracts runtime logs from SQLite and compile a standardized evaluation CSV."""
         
-        # Generate the destination file path right inside the current dataset folder
-        db_source = self.thread.db_path
-        output_dir = os.path.dirname(db_source)
-        output_csv = os.path.join(output_dir, "usability_test_results.csv")
+        if hasattr(sys, "frozen") or "NUITKA_PACKAGE_HOME" in os.environ:
+            base_dir = Path(sys.argv[0]).resolve().parent
+        else:
+            base_dir = Path(__file__).resolve().parent
+
+        output_csv = base_dir / "dataset" / "usability_test_results.csv"
         
         print(f"[UI] Initializing telemetry data dump from {db_source}...")
         conn = sqlite3.connect(db_source)
@@ -281,11 +280,13 @@ class App(QWidget):
         event.accept()
 
 def main():
-    env_db = os.getenv("SQLITE_DATABASE", "music_system.db")
-    env_ann = os.getenv("ANNOY_INDEX", "music_vectors.ann")
-    
-    db_file = os.path.abspath(env_db)
-    ann_file = os.path.abspath(env_ann)
+    if hasattr(sys, "frozen") or "NUITKA_PACKAGE_HOME" in os.environ:
+        base_dir = Path(sys.argv[0]).resolve().parent
+    else:
+        base_dir = Path(__file__).resolve().parent
+
+    db_file = base_dir / "dataset" / "music_system.db"
+    ann_file = base_dir / "dataset" / "music_vectors.ann"
 
     if not os.path.exists(db_file) or not os.path.exists(ann_file):
         print("[FIRST-RUN] Application assets missing. Beginning automated environment compilation...")

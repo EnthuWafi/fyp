@@ -3,7 +3,7 @@ import sqlite3
 import os
 
 class MusicRepository:
-    def __init__(self, db_path="music_system.db"):
+    def __init__(self, db_path):
         # self.conn = psycopg2.connect(dbname=dbname, user=user, password=password, host=host, port=port)
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
