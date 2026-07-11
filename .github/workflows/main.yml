@@ -23,7 +23,6 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # FIX 1: Allocate a 12GB disk swap file to absorb peak memory spikes during GCC compilation
       - name: Expand Virtual Memory Cushion (Linux Only)
         if: matrix.os == 'ubuntu-latest'
         uses: pierotofy/set-swap-space@master
@@ -49,8 +48,7 @@ jobs:
 
       - name: Execute Nuitka Direct Compilation
         run: |
-          # FIX 2: Replaced --jobs=1 with --low-memory to adjust Nuitka's internal data arrays for low-RAM hosts
-          nuitka --standalone --plugin-enable=pyside6 --include-qt-plugins=iconengines,imageformats,multimedia,platforms,styles --include-package=mediapipe --nofollow-import-to=matplotlib --include-data-dir=models=models --include-data-files=style.qss=style.qss --low-memory --output-dir=build main.py
+          nuitka --standalone --plugin-enable=pyside6 --include-qt-plugins=iconengines,imageformats,multimedia,platforms --include-package=mediapipe --nofollow-import-to=matplotlib --include-data-dir=models=models --include-data-files=style.qss=style.qss --low-memory --output-dir=build main.py
 
       - name: Upload Compiled Application Bundle
         uses: actions/upload-artifact@v4
