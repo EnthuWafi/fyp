@@ -25,7 +25,6 @@ jobs:
       - name: Install Application System Dependencies
         run: |
           python -m pip install --upgrade pip
-          # Standard installation loop allows mediapipe to configure its basic requirements
           pip install PySide6 nuitka numpy pillow ai-edge-litert annoy mediapipe yt-dlp kagglehub
 
       - name: Strip OpenCV Contrib Binaries
@@ -41,8 +40,8 @@ jobs:
         uses: Nuitka/Nuitka-Action@main
         with:
           script-name: main.py
-          output_dir: build
-          output_file: DriverMusicRegulator.exe
+          output-dir: build
+          output-file: DriverMusicRegulator.exe
           standalone: true
           onefile: false
           enable-plugins: pyside6
