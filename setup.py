@@ -2,6 +2,7 @@
 import csv
 import os
 import sqlite3
+import sys
 from annoy import AnnoyIndex
 import kagglehub
 from pathlib import Path
