@@ -36,22 +36,21 @@ jobs:
         run: |
           python -c "import os, yt_dlp.extractor.lazy_extractors as l; p = l.__file__; os.remove(p); print(f'Successfully stripped: {p}')"
 
+      # FIXED: Custom flags are now provided as individual native action options
       - name: Build Windows Executable Bundle
         uses: Nuitka/Nuitka-Action@main
         with:
           script-name: main.py
           output-dir: build
           output-file: DriverMusicRegulator.exe
-          standalone: true
-          onefile: false
+          mode: standalone
           enable-plugins: pyside6
           include-package: mediapipe
           include-data-dir: models=models
           include-data-files: style.qss=style.qss
-          nuitka-flags: |
-            --low-memory
-            --lto=no
-            --nofollow-import-to=matplotlib
+          low-memory: true
+          lto: "no"
+          nofollow-import-to: matplotlib
 
       - name: Bundle System ICU Dependencies
         shell: powershell
