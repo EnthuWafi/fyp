@@ -31,14 +31,6 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Expand Virtual Memory Cushion (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: alred/set-pagefile-action@v1
-        with:
-          location: 'C:\'
-          initial-size: 12288
-          maximum-size: 12288
-
       - name: Initialize Standard Python 3.12
         uses: actions/setup-python@v5
         with:
