@@ -25,9 +25,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install PySide6 nuitka numpy opencv-python-headless pillow ai-edge-litert annoy mediapipe yt-dlp kagglehub
 
+      # CORE FIX: Deletes the massive class index so MSVC doesn't run out of heap space
+      - name: Strip Heavy Static Extractors from yt-dlp
+        run: |
+          python -c "import os, yt_dlp.extractor.lazy_extractors as l; p = l.__file__; os.remove(p); print(f'Successfully stripped: {p}')"
+
       - name: Execute Nuitka Direct Compilation
         run: |
-          # Added --assume-yes-for-downloads to bypass interactive console prompts safely
           python -m nuitka --standalone --plugin-enable=pyside6 --include-qt-plugins=iconengines,imageformats,multimedia,platforms --include-package=mediapipe --nofollow-import-to=matplotlib --include-data-dir=models=models --include-data-files=style.qss=style.qss --low-memory --lto=no --assume-yes-for-downloads --output-dir=build main.py
 
       - name: Upload Compiled Application Bundle
