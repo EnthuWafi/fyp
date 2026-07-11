@@ -1,0 +1,68 @@
+name: Automated Cloud Compilation Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-executables:
+    name: Compile Standalone Application
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: DriverApp-Linux
+            output_dir: build/main.dist
+            compiler_flags: "--lto=no --cflags=-O0"
+          - os: windows-latest
+            artifact_name: DriverApp-Windows
+            output_dir: build/main.dist
+            compiler_flags: "--lto=no --cflags=/Od"
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Expand Virtual Memory Cushion (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 12
+
+      - name: Expand Virtual Memory Cushion (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: alred/set-pagefile-action@v1
+        with:
+          location: 'C:\'
+          initial-size: 12288
+          maximum-size: 12288
+
+      - name: Initialize Standard Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Set up Native C++ Compiler Tools (Linux Only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install Project Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PySide6 nuitka numpy opencv-python-headless pillow ai-edge-litert annoy mediapipe yt-dlp kagglehub
+
+      - name: Execute Nuitka Direct Compilation
+        run: |
+          nuitka --standalone --plugin-enable=pyside6 --include-qt-plugins=iconengines,imageformats,multimedia,platforms --include-package=mediapipe --nofollow-import-to=matplotlib --include-data-dir=models=models --include-data-files=style.qss=style.qss --low-memory ${{ matrix.compiler_flags }} --output-dir=build main.py
+
+      - name: Upload Compiled Application Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.output_dir }}
+          if-no-files-found: error
