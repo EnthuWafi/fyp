@@ -44,7 +44,8 @@ modules = Concurrent,Core,DBus,Gui,Multimedia,Network,Widgets
 
 # qt plugins used by the application. only relevant for desktop deployment
 # for qt plugins used in android application see [android][plugins]
-plugins = accessiblebridge,egldeviceintegrations,generic,iconengines,imageformats,multimedia,networkaccess,networkinformation,platforminputcontexts,platforms,platforms/darwin,platformthemes,styles,tls,wayland-decoration-client,wayland-graphics-integration-client,wayland-shell-integration,xcbglintegrations
+# plugins = accessiblebridge,egldeviceintegrations,generic,iconengines,imageformats,multimedia,networkaccess,networkinformation,platforminputcontexts,platforms,platforms/darwin,platformthemes,styles,tls,wayland-decoration-client,wayland-graphics-integration-client,wayland-shell-integration,xcbglintegrations
+plugins = iconengines,imageformats,multimedia,platforms,styles
 
 [android]
 
@@ -68,7 +69,7 @@ macos.permissions =
 mode = onefile
 
 # specify any extra nuitka arguments
-extra_args = --quiet --noinclude-qt-translations
+extra_args = --quiet --noinclude-qt-translations --include-package-data=mediapipe --static-libpython=no --noinclude-dlls=*.test --nofollow-import-to=matplotlib --nofollow-import-to=tkinter  --include-data-dir=models=models --include-data-files=style.qss=style.qss
 
 [buildozer]
 
