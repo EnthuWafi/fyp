@@ -1,4 +1,4 @@
-name: Automated Windows Cloud Compilation Pipeline
+name: Automated Windows Production Deployment
 
 on:
   push:
@@ -7,36 +7,62 @@ on:
 
 jobs:
   build-windows:
-    name: Compile Standalone Windows Application
+    name: Compile Standalone Windows Executable
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout Source Code
+      - name: Checkout Source Code Repository
         uses: actions/checkout@v4
 
-      - name: Initialize Standard Python 3.12
+      - name: Initialize Standard Python 3.12 Environment
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Install Project Dependencies
+      - name: Install Application System Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PySide6 nuitka numpy opencv-python-headless pillow ai-edge-litert annoy mediapipe yt-dlp kagglehub
+          # Standard installation loop allows mediapipe to configure its basic requirements
+          pip install PySide6 nuitka numpy pillow ai-edge-litert annoy mediapipe yt-dlp kagglehub
 
-      # CORE FIX: Deletes the massive class index so MSVC doesn't run out of heap space
-      - name: Strip Heavy Static Extractors from yt-dlp
+      - name: Strip OpenCV Contrib Binaries
+        run: |
+          pip uninstall -y opencv-contrib-python opencv-python-headless
+          pip install opencv-python-headless
+
+      - name: Patch yt-dlp Extractor Memory Overhead
         run: |
           python -c "import os, yt_dlp.extractor.lazy_extractors as l; p = l.__file__; os.remove(p); print(f'Successfully stripped: {p}')"
 
-      - name: Execute Nuitka Direct Compilation
-        run: |
-          python -m nuitka --standalone --plugin-enable=pyside6 --include-qt-plugins=iconengines,imageformats,multimedia,platforms --include-package=mediapipe --nofollow-import-to=matplotlib --include-data-dir=models=models --include-data-files=style.qss=style.qss --low-memory --lto=no --assume-yes-for-downloads --output-dir=build main.py
+      - name: Build Windows Executable Bundle
+        uses: Nuitka/Nuitka-Action@main
+        with:
+          script-name: main.py
+          output_dir: build
+          output_file: DriverMusicRegulator.exe
+          standalone: true
+          onefile: false
+          enable-plugins: pyside6
+          include-package: mediapipe
+          include-data-dir: models=models
+          include-data-files: style.qss=style.qss
+          nuitka-flags: |
+            --low-memory
+            --lto=no
+            --nofollow-import-to=matplotlib
 
-      - name: Upload Compiled Application Bundle
+      - name: Bundle System ICU Dependencies
+        shell: powershell
+        run: |
+          Copy-Item -Path "C:\Windows\System32\icuuc.dll" -Destination "build/main.dist\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "C:\Windows\System32\icuin.dll" -Destination "build/main.dist\" -ErrorAction SilentlyContinue
+          
+      - name: Archive and Upload Production Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: DriverApp-Windows
+          name: DriverMusicRegulator-Windows
           path: build/main.dist
           if-no-files-found: error
