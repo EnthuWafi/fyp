@@ -1,4 +1,4 @@
-name: Automated Cloud Compilation Pipeline
+name: Automated Windows Cloud Compilation Pipeline
 
 on:
   push:
@@ -6,40 +6,19 @@ on:
       - main
 
 jobs:
-  build-executables:
-    name: Compile Standalone Application
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            artifact_name: DriverApp-Linux
-            output_dir: build/main.dist
-          - os: windows-latest
-            artifact_name: DriverApp-Windows
-            output_dir: build/main.dist
-    runs-on: ${{ matrix.os }}
+  build-windows:
+    name: Compile Standalone Windows Application
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
-
-      - name: Expand Virtual Memory Cushion (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 12
 
       - name: Initialize Standard Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
-
-      - name: Set up Native C++ Compiler Tools (Linux Only)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential
 
       - name: Install Project Dependencies
         run: |
@@ -53,6 +32,6 @@ jobs:
       - name: Upload Compiled Application Bundle
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.output_dir }}
+          name: DriverApp-Windows
+          path: build/main.dist
           if-no-files-found: error
