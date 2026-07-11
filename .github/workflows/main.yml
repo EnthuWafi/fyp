@@ -39,6 +39,8 @@ jobs:
       # FIXED: Custom flags are now provided as individual native action options
       - name: Build Windows Executable Bundle
         uses: Nuitka/Nuitka-Action@main
+        env:
+          NUITKA_EXTRA_OPTIONS: "--include-qt-plugins=iconengines,imageformats,multimedia,platforms"
         with:
           script-name: main.py
           output-dir: build

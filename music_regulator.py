@@ -52,7 +52,7 @@ class IsoPrincipleRegulator:
 
             #valence
             if (current_v - self.last_v) >= min_improvement:
-                print(f"[FEEDBACK] Success. Valence dropped by {current_v - self.last_v:.2f}.")
+                print(f"[FEEDBACK] Success. Valence increased by {current_v - self.last_v:.2f}.")
                 self.bias_multiplier_v = 1.0
             else:
                 self.bias_multiplier_v = min(4.0, self.bias_multiplier_v * 2.0)
@@ -69,7 +69,7 @@ class IsoPrincipleRegulator:
 
             #valence
             if (current_v - self.last_v) >= min_improvement:
-                print(f"[FEEDBACK] Success. Valence dropped by {self.last_v - current_v:.2f}.")
+                print(f"[FEEDBACK] Success. Valence increased by {self.last_v - current_v:.2f}.")
                 self.bias_multiplier_v = 1.0
             else:
                 self.bias_multiplier_v = min(4.0, self.bias_multiplier_v * 2.0)
@@ -92,23 +92,43 @@ class IsoPrincipleRegulator:
 
 
         # QUADRANT PROTOCOL LOGIC
+
         if current_valence >= 0:
-            self.active_protocol = "Sustain Protocol"
-            
+            new_protocol = "Sustain Protocol"
         elif current_valence < 0 and current_arousal >= 0:
-            # self.active_protocol = "Calm Down Protocol" if not force_calm else "Emergency Calm Protocol"
-            if force_calm:
-                self.active_protocol = "Emergency Calm Protocol"
-                self.bias_multiplier_v = 1.5
-                self.bias_multiplier_a = 1.5
-            else:
-                self.active_protocol = "Calm Down Protocol"
+            new_protocol = "Emergency Calm Protocol" if force_calm else "Calm Down Protocol"
+        elif current_valence < 0 and current_arousal < 0:
+            new_protocol = "Ramp Up Protocol"
+
+        # if current_valence >= 0:
+        #     self.active_protocol = "Sustain Protocol"
+            
+        # elif current_valence < 0 and current_arousal >= 0:
+        #     if force_calm:
+        #         self.active_protocol = "Emergency Calm Protocol"
+        #     else:
+        #         self.active_protocol = "Calm Down Protocol"
                 
+        #     self.target_v = min(1.0, current_valence + (0.1 * self.bias_multiplier_v))
+        #     self.target_a = max(-1.0, current_arousal - (0.1 * self.bias_multiplier_a))
+            
+        # elif current_valence < 0 and current_arousal < 0:
+        #     self.active_protocol = "Ramp Up Protocol"
+        #     self.target_v = min(1.0, current_valence + (0.1 * self.bias_multiplier_v))
+        #     self.target_a = min(1.0, current_arousal + (0.1 * self.bias_multiplier_a))
+
+        if new_protocol != self.active_protocol:
+            print(f"[SYSTEM] Protocol shifting from {self.active_protocol} to {new_protocol}. Resetting adaptive biases.")
+            self.bias_multiplier_a = 1.0
+            self.bias_multiplier_v = 1.0
+        
+        self.active_protocol = new_protocol
+
+        if self.active_protocol == "Calm Down Protocol" or self.active_protocol == "Emergency Calm Protocol":
             self.target_v = min(1.0, current_valence + (0.1 * self.bias_multiplier_v))
             self.target_a = max(-1.0, current_arousal - (0.1 * self.bias_multiplier_a))
             
-        elif current_valence < 0 and current_arousal < 0:
-            self.active_protocol = "Ramp Up Protocol"
+        elif self.active_protocol == "Ramp Up Protocol":
             self.target_v = min(1.0, current_valence + (0.1 * self.bias_multiplier_v))
             self.target_a = min(1.0, current_arousal + (0.1 * self.bias_multiplier_a))
 
