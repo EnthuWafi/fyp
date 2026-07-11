@@ -14,11 +14,9 @@ jobs:
           - os: ubuntu-latest
             artifact_name: DriverApp-Linux
             output_dir: build/main.dist
-            compiler_flags: "--lto=no --cflags=-O0"
           - os: windows-latest
             artifact_name: DriverApp-Windows
             output_dir: build/main.dist
-            compiler_flags: "--lto=no --cflags=/Od"
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -50,7 +48,7 @@ jobs:
 
       - name: Execute Nuitka Direct Compilation
         run: |
-          nuitka --standalone --plugin-enable=pyside6 --include-qt-plugins=iconengines,imageformats,multimedia,platforms --include-package=mediapipe --nofollow-import-to=matplotlib --include-data-dir=models=models --include-data-files=style.qss=style.qss --low-memory ${{ matrix.compiler_flags }} --output-dir=build main.py
+          nuitka --standalone --plugin-enable=pyside6 --include-qt-plugins=iconengines,imageformats,multimedia,platforms --include-package=mediapipe --nofollow-import-to=matplotlib --include-data-dir=models=models --include-data-files=style.qss=style.qss --low-memory --lto=no --output-dir=build main.py
 
       - name: Upload Compiled Application Bundle
         uses: actions/upload-artifact@v4
