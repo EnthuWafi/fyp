@@ -42,7 +42,7 @@ jobs:
 
       - name: Execute Nuitka Direct Compilation
         run: |
-          nuitka --standalone --plugin-enable=pyside6 --include-package=mediapipe --nofollow-import-to=matplotlib --include-data-dir=models=models --include-data-files=style.qss=style.qss --output-dir=build main.py
+          nuitka --standalone --plugin-enable=pyside6 --include-package=mediapipe --nofollow-import-to=matplotlib --include-data-dir=models=models --include-data-files=style.qss=style.qss --jobs=1 --output-dir=build main.py
 
       - name: Upload Compiled Application Bundle
         uses: actions/upload-artifact@v4
