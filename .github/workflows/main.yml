@@ -45,7 +45,7 @@ jobs:
           script-name: main.py
           output-dir: build
           output-file: DriverMusicRegulator.exe
-          mode: standalone
+          mode: onefile
           enable-plugins: pyside6
           include-package: mediapipe
           include-data-dir: models=models
